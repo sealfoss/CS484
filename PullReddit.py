@@ -1,7 +1,6 @@
 import praw
 import time
 
-out_filename = "donald_garbage.txt"
 c_id='R1_WMZ0uXs7OZA'
 c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
 p_word = 'mason4lyfe'
@@ -9,13 +8,15 @@ u_agent= 'Comment Pull by Reed'
 u_name = 'cs484_bot'
 
 
-sub_name = 'The_Donald'
-top_sub_len = 200
-top_com_len = 100
-reddit_limit = 600
+# sub_name = 'The_Donald'
+# sub_name = "JoeBiden"
+sub_name = "ElizabethWarren"
+max_top_posts = 200
+max_top_comm = 100
+out_filename = sub_name + "-posts" + str(max_top_posts) + "-comments" + str(max_top_comm) + ".dat"
 
-print("Reading the top " + str(top_com_len) + " comments from the top "
-      + str(top_sub_len) + " posts from /r/" + sub_name)
+print("Reading the top " + str(max_top_comm) + " comments from the top "
+      + str(max_top_posts) + " posts from /r/" + sub_name)
 reddit = praw.Reddit(client_id=c_id,
                      client_secret=c_secret,
                      password=p_word,
@@ -30,7 +31,7 @@ lines = []
 
 top_submissions = []
 count = 1
-for submission in subreddit.top(limit=top_sub_len):
+for submission in subreddit.top(limit=max_top_posts):
 
     top_submissions.append(submission)
     print("\t" + str(count) + ")  \"" + submission.title + "\"\n\tScore: " + str(submission.score) + "\n")
@@ -54,7 +55,7 @@ for submission in top_submissions:
         if body is not None:
             lines.append(comment.body)
             com_count += 1
-            if com_count >= top_com_len:
+            if com_count >= max_top_comm:
                 break
     print("\n")
 
@@ -65,15 +66,4 @@ for line in lines:
     f.write(formatted + "\n")
 f.close()
 print("ALL DONE!")
-"""
-top_comments = []
-submission = submissions[0]
-comments = submission.comment_sort = 'top'
-
-count = 1
-for comment in submission.comments:
-    print("\nComment #" + str(count) + ": \"" + comment.body + "\"")
-    count += 1
-"""
-
 
