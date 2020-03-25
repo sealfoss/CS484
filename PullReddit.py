@@ -1,4 +1,8 @@
 import praw
+from praw import exceptions
+import prawcore
+from prawcore import PrawcoreException
+
 import time
 
 c_id='R1_WMZ0uXs7OZA'
@@ -10,7 +14,9 @@ u_name = 'cs484_bot'
 
 # sub_name = 'The_Donald'
 # sub_name = "JoeBiden"
-sub_name = "ElizabethWarren"
+# sub_name = "ElizabethWarren"
+sub_name = "fatpeoplehate"
+
 max_top_posts = 200
 max_top_comm = 100
 out_filename = sub_name + "-posts" + str(max_top_posts) + "-comments" + str(max_top_comm) + ".dat"
@@ -31,11 +37,18 @@ lines = []
 
 top_submissions = []
 count = 1
-for submission in subreddit.top(limit=max_top_posts):
 
-    top_submissions.append(submission)
-    print("\t" + str(count) + ")  \"" + submission.title + "\"\n\tScore: " + str(submission.score) + "\n")
-    count += 1
+try:
+    for submission in subreddit.top(limit=max_top_posts):
+
+        top_submissions.append(submission)
+        print("\t" + str(count) + ")  \"" + submission.title + "\"\n\tScore: " + str(submission.score) + "\n")
+        count += 1
+except praw.exceptions.PRAWException:
+    print("Balls")
+except prawcore.PrawcoreException:
+    print("Dick")
+
 
 # top_comments = []
 print("\nParsing comments...")
