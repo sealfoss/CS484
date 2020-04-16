@@ -1,15 +1,22 @@
 import praw
 from praw import exceptions
 import prawcore
-
+import re
+from nltk.corpus import stopwords
+import numpy as np
 
 class Analyzer:
     def __init__(self):
         self.running = True
+
         self.c_zero_lines = None
         self.c_zero_name = None
+        self.c_zero_matrix = None
+
         self.c_one_lines = None
         self.c_one_name = None
+        self.c_one_matrix = None
+
         self.word_bag = None
         self.test_lines = None
         self.greeting = "\nPlease choose from the following options ('q' to quit):\n"
@@ -19,27 +26,182 @@ class Analyzer:
                         "4)\tTest a reddit post against training data.\n",
                         "5)\tTest a reddit comment against training data.\n"]
 
+    @staticmethod
+    def build_matrix(lines, word_bag):
+
+        row_count = len(lines)
+        col_count = len(word_bag)
+        matrix = np.zeros((row_count, col_count))
+
+        for i in range(0, row_count):
+            line = lines[i]
+            for j in range(0, len(line)):
+                word = line[j]
+                index = word_bag.index(word)
+                matrix[i, j] += 1
+
+        return matrix
+
+    @staticmethod
+    def reduce_lines(lines):
+        # reddit has some stop words that are unique to it as a platform. this can probably be expanded
+        stop_words = set(stopwords.words('english'))
+        custom_stop_words = ["[deleted]", "[removed]"]
+
+        # this is arbitrary, and can probably be adjusted for better results
+        min_line_len = 1
+
+        # this is the regex used to reduce each line, can be modified or changed
+        # this iteration includes the ' symbol
+        reduction_regex = r'[^a-zA-Z\']'
+        # this iteration includes only letters
+        # reduction_regex = r'[^a-zA-Z]'
+
+        lines_reduced = []
+        for line in lines:
+            line_reduced = []
+            reduced = re.sub(reduction_regex, ' ', line)
+            split = list(reduced.split(' '))
+            split = list(dict.fromkeys(split))
+            for word in split:
+                if len(word) > 1 and word not in stop_words:
+                    lower = word.lower()
+                    line_reduced.append(lower)
+            if len(line_reduced) >= min_line_len:
+                lines_reduced.append(line_reduced)
+        words = set()
+        for line in lines_reduced:
+            for word in line:
+                words.add(word)
+
+        return [lines_reduced, words]
+
+    def parse_lines(self):
+        if self.c_zero_lines is not None and self.c_one_lines is not None:
+            reduced_c_zero_lines = None
+            reduced_c_zero_words = None
+            reduced_c_one_lines = None
+            reduced_c_one_words = None
+            keep_going = True
+
+            print("Reducing lines in classification 0...")
+            reduced_c_zero = self.reduce_lines(self.c_zero_lines)
+            reduced_c_zero_lines = reduced_c_zero[0]
+            reduced_c_zero_words = reduced_c_zero[1]
+            print("Classification 0 reduced.")
+
+            if len(reduced_c_zero_lines) is 0:
+                keep_going = False
+                print("No usable lines found in classification 0!")
+                print("Please pull more or different comments from reddit for classification 0 and try again.")
+            else:
+                print("Found " + str(len(reduced_c_zero_lines)) + " usable lines for classification 0.")
+
+            if len(reduced_c_zero_words) is 0:
+                keep_going = False
+                print("No usable words found in classification 0!")
+                print("Please pull more or different comments from reddit for classification 0 and try again.")
+            else:
+                print("Found " + str(len(reduced_c_zero_words)) + " usable words for classification 0.")
+
+            if keep_going:
+                print("Reducing lines in classification 1...")
+                reduced_c_one = self.reduce_lines(self.c_one_lines)
+                reduced_c_one_lines = reduced_c_one[0]
+                reduced_c_one_words = reduced_c_one[1]
+                print("Classification 1 reduced")
+
+                if len(reduced_c_one_lines) is 0:
+                    keep_going = False
+                    print("No usable lines found in classification 1!")
+                    print("Please pull more or different comments from reddit for classification 1 and try again.")
+                else:
+                    print("Found " + str(len(reduced_c_one_lines)) + " usable lines for classification 1.")
+
+                if len(reduced_c_one_words) is 0:
+                    keep_going = False
+                    print("No usable words found in classification 1!")
+                    print("Please pull more or different comments from reddit for classification 1 and try again.")
+                else:
+                    print("Found " + str(len(reduced_c_one_words)) + " usable words for classification 1.")
+
+            if keep_going:
+                self.word_bag = list(reduced_c_one_words.union(reduced_c_zero_words))
+                print("Both classification 1 and 2 have been reduced and a bag of words has been defined.")
+                print("Building matrices from training data...")
+                self.c_zero_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
+                self.c_one_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
+                print("Matrices completed successfully.")
+                self.options[2] = self.options[2] + "(Matrices present for existing classification data.)"
+
+        else:
+            print("Please select subreddits and associated comments for classifications "
+                  "0 and 1 BEFORE attempting to build bag of words.")
+
     def error_quit(self, error):
         print("ERROR DETECTED: " + error)
         print("Exiting program...")
         self.running = False
         pass
 
-    def pull_comments(self, c0c1):
-        pulled = None
+    @staticmethod
+    def select_sub():
         sub_name = None
-        while sub_name is None:
-            print("What is the name of the subreddit you would like to pull comments from?")
-            name = str(input())
-            if name is not None and len(name) > 0:
-                print("You have chosen to pull comments from /r/" + name + ".")
-                print("Would you like to proceed? (y/n)")
-                answer = str(input()).lower()
-                if answer == "y":
-                    sub_name = name
-            else:
-                print("Invalid subreddit name, please try again.")
+        max_posts = 0
+        max_comments = 0
 
+        while sub_name is None or max_posts is 0 or max_comments is 0:
+            while sub_name is None:
+                print("What is the name of the subreddit you would like to pull comments from?")
+                name = str(input())
+                if name is not None and 0 < len(name) < 20:
+                    sub_name = name
+                else:
+                    print("Invalid subreddit name, please try again.")
+            print("You have chosen /r/" + sub_name + " as your subreddit.")
+
+            while max_posts is 0:
+                print(
+                    "How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
+                m = int(input())
+                if m is not None and m > 0:
+                    max_posts = m
+                else:
+                    print("Please enter an integer value greater than zero.")
+            print("You have chosen to pull the top " + str(max_posts) + " posts from /r/" + sub_name + ".")
+
+            while max_comments is 0:
+                print("How many of the top comments from these posts in /r/"
+                      + sub_name + " would you like to pull from reddit? (n>0)")
+                m = int(input())
+                if m is not None and m > 0:
+                    max_comments = m
+                else:
+                    print("Please enter an integer value greater than zero.")
+
+            answer = None
+            while answer is None:
+                print("You have chosen to pull the top " + str(max_comments) + " comments from the top "
+                      + str(max_posts) + " posts in /r/" + sub_name + ".")
+                print("Is this correct?")
+                answer = str(input()).lower()
+                if answer == 'y' or answer == 'n':
+                    if answer == 'n':
+                        sub_name = None
+                        max_posts = 0
+                        max_comments = 0
+                else:
+                    print("Invalid input, please answer 'y' or 'n'.")
+                    answer = None
+
+        return [sub_name, max_posts, max_comments]
+
+    def pull_comments(self, c0c1):
+        selected_sub = self.select_sub()
+        sub_name = selected_sub[0]
+        max_posts = selected_sub[1]
+        max_comments = selected_sub[2]
+        pulled = None
         filename = sub_name + ".dat"
         found = True
         in_file = None
@@ -63,33 +225,6 @@ class Analyzer:
                 pulled = lines[1:]
 
         if pulled is None:
-            max_posts = 0
-            while max_posts == 0:
-                print("How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
-                m = int(input())
-                if m is not None and m > 0:
-                    print("You have chosen to pull " + str(m) + " comments from /r/" + sub_name + ".")
-                    print("Would you like to proceed? (y/n)")
-                    answer = str(input()).lower()
-                    if answer == "y":
-                        max_posts = m
-                else:
-                    print("Please enter an integer value greater than zero.")
-
-            max_comments = 0
-            while max_comments == 0:
-                print("How many of the top comments from these posts in /r/"
-                      + sub_name + " would you like to pull from reddit? (n>0)")
-                m = int(input())
-                if m is not None and m > 0:
-                    print("You have chosen to pull " + str(m) + " comments from posts in /r/" + sub_name + ".")
-                    print("Would you like to proceed? (y/n)")
-                    answer = str(input()).lower()
-                    if answer == "y":
-                        max_comments = m
-                else:
-                    print("Please enter an integer value greater than zero.")
-
             try:
                 pulled = self.get_from_reddit(sub_name, max_posts, max_comments)
             except praw.exceptions.PRAWException:
@@ -109,17 +244,16 @@ class Analyzer:
             for comment in pulled:
                 out_file.write(comment + "\n")
 
-        c_name = None
         if c0c1:
             self.c_zero_name = sub_name
             self.c_zero_lines = pulled
-            self.options[0] = "1)\tClassification C0 set to " + str(len(pulled)) \
-                              + " comments from /r/" + sub_name + ".\n"
+            self.options[0] = "1)\tChoose subreddit representing classification 0. (Set to " + str(len(pulled)) \
+                              + " comments from /r/" + sub_name + ".)\n"
         else:
             self.c_one_name = sub_name
             self.c_one_lines = pulled
-            self.options[0] = "2)\tClassification C1 set to " + str(len(pulled)) \
-                              + " comments from /r/" + sub_name + ".\n"
+            self.options[1] = "2)\tChoose subreddit representing classification 1. (Set to " + str(len(pulled)) \
+                              + " comments from /r/" + sub_name + ".)\n"
 
     def get_from_reddit(self, sub_name, max_top_posts, max_top_comments):
         print("Pulling the top " + str(max_top_comments) + " comments from the top "
@@ -170,19 +304,24 @@ class Analyzer:
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
         op_str = str(option).lower()
-        op_i = int(option)
+        op_int = None
+        try:
+            op_int = int(option)
+        except ValueError:
+            op_int = None
+
         if op_str is not None and op_str == 'q':
             self.running = False
-        elif op_i is not None:
-            if op_i == 1:
+        elif op_int is not None:
+            if op_int == 1:
                 self.pull_comments(True)
-            elif op_i == 2:
+            elif op_int == 2:
                 self.pull_comments(False)
-            elif op_i == 3:
+            elif op_int == 3:
+                self.parse_lines()
+            elif op_int == 4:
                 pass
-            elif op_i == 4:
-                pass
-            elif op_i == 5:
+            elif op_int == 5:
                 pass
         else:
             print("Invalid input, please try again.\n")
@@ -200,3 +339,4 @@ while a.is_running():
     option = input()
     a.select_menu_option(option)
 print("Thanks for using the reddit analysis program!\n")
+quit(0)

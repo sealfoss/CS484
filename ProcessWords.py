@@ -5,7 +5,7 @@ min_line_len = 5
 
 # subreddit_name = "The_Donald"
 # subreddit_name = "JoeBiden"
-subreddit_name = "ElizabethWarren"-35624
+subreddit_name = "ElizabethWarren"
 in_filename = subreddit_name + "-posts200-comments100.dat"
 in_file = open(in_filename, encoding="utf8")
 
