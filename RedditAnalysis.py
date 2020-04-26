@@ -5,6 +5,7 @@ import re
 from nltk.corpus import stopwords
 import numpy as np
 
+
 class Analyzer:
     def __init__(self):
         self.running = True
@@ -227,11 +228,11 @@ class Analyzer:
         if pulled is None:
             try:
                 pulled = self.get_from_reddit(sub_name, max_posts, max_comments)
-            except praw.exceptions.PRAWException:
-                self.error_quit("Reddit doesn't like your sub name.")
+            except praw.exceptions.PRAWException as err:
+                self.error_quit("Reddit doesn't like your sub name." + str(err))
                 return
-            except prawcore.PrawcoreException:
-                self.error_quit("Reddit doesn't like your sub name.")
+            except prawcore.PrawcoreException as err:
+                self.error_quit("Reddit doesn't like your sub name." + str(err))
                 return
 
             print("Successfully pulled " + str(len(pulled)) + " comments from /r/" + sub_name + ".\n")
