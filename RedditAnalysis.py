@@ -4,7 +4,7 @@ import prawcore
 import re
 from nltk.corpus import stopwords
 import numpy as np
-
+import pdb
 class Analyzer:
     def __init__(self):
         self.running = True
@@ -37,10 +37,16 @@ class Analyzer:
             line = lines[i]
             for j in range(0, len(line)):
                 word = line[j]
-                index = word_bag.index(word)
-                matrix[i, j] += 1
+                index = word_bag.index(word) #What is this used for than?
+                matrix[i,index] += 1
 
         return matrix
+	
+	@staticmethod
+	def knnAlgo(matrix1,matrix2):
+		for matrix1Line in matrix1:
+			for matrix2Line in matrix2:
+				print("pizza")
 
     @staticmethod
     def reduce_lines(lines):
@@ -338,5 +344,6 @@ while a.is_running():
     a.print_menu()
     option = input()
     a.select_menu_option(option)
+	pdb.set_trace()
 print("Thanks for using the reddit analysis program!\n")
 quit(0)
