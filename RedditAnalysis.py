@@ -39,7 +39,7 @@ class Analyzer:
             for j in range(0, len(line)):
                 word = line[j]
                 index = word_bag.index(word)
-                matrix[i, j] += 1
+                matrix[i, index] += 1
 
         return matrix
 
