@@ -24,8 +24,87 @@ class Analyzer:
         self.options = ["1)\tChoose subreddit representing classification 0.\n",
                         "2)\tChoose subreddit representing classification 1.\n",
                         "3)\tBuild word bag and training matrices.\n",
-                        "4)\tTest a reddit post against training data.\n",
-                        "5)\tTest a reddit comment against training data.\n"]
+                        "4)\tChoose a reddit post to pull comments from for testing.\n",
+                        "5)\tClassify comments from chosen reddit post based on training data.\n"]
+
+    # this was my solution for tfidf from hw1. nothing about it works here, literal copy and paste
+    # i'll try to hook it up to the class correctly, let me know if you have better ideas.
+    # had to comment out most of it to keep it from throwing errors
+    def tfidf(self):
+        print("Building TFIDF array...")
+        print("Counting all instances of all words used in training lines...")
+        all_words_count = 0
+        """
+        for i in range(0, training_matrix.shape[0]):
+            all_words_count += int(np.sum(training_matrix[i]))
+        print("Found " + str(all_words_count) + " instances of all words used in training lines.")
+        TFIDF = np.zeros(word_bag_len)
+        total_times_used = np.sum(training_matrix, axis=0)
+        print("Calculating TF * IDF * Normalization for each word.")
+        for i in range(0, len(word_bag)):
+            TF = total_times_used[i] / float(all_words_count)
+            lines_with_word = 0
+            for j in range(0, training_lines_len):
+                if training_matrix[j, i] > 0:
+                    lines_with_word += 1
+            IDF = 0
+            if lines_with_word > 0:
+                IDF = math.log(training_lines_len / float(lines_with_word))
+                print("IDF: " + str(IDF))
+            TFIDF[i] = TF * IDF
+        print("TFIDF array built. Normalizing...")
+        TFIDF_mag = np.linalg.norm(TFIDF)
+        TFIDF_normalized = TFIDF / TFIDF_mag
+        print("Scaling test and training matrix by TFIDF...")
+        training_matrix *= TFIDF_normalized
+        test_matrix *= TFIDF_normalized
+        print("Testing and training matricies scaled by TFIDF.")
+        """
+
+    # this is literally copied and pasted.
+    # try to keep in mind that this function was written as a way to spread the work load over multiple processes
+    # kayy is your value k, given a dumb name to differentiate between other instances of that value in the program
+    # training_m_proc is the training data matrix
+    # test_slice is the slice of test matrix given to this process to work on.
+    # grades_copy are the grades for each line of the training matrix, -1 or 1.
+    # results is an array for storing test results in and sending back to the main process.
+    # conn is a device for synchronizing processes
+    def run_comparison_cos(self, kayy, training_m_proc, test_slice, grades_copy, results, conn):
+        percent_done = 0
+        test_len = test_slice.shape[0]
+        print("Comparing " + str(test_len) + " vectors to training matrix of shape "
+              + str(training_m_proc.shape) + " by cosine,  k = " + str(kayy))
+        test_count = 0
+        for test_vec in test_slice:
+            new_percent = (100 * test_count) / test_len
+            if (new_percent - percent_done) > 1:
+                percent_done = int(new_percent)
+                print("Progress: " + str(percent_done) + "% finished (" + str(test_count) + "/" + str(test_len) + ")")
+            k_grades = np.zeros((kayy,), dtype=int)
+            all_cosines = list()
+            test_vec_mag = np.linalg.norm(test_vec)
+            for training_vec in training_m_proc:
+                dot = np.dot(test_vec, training_vec)
+                training_vec_mag = np.linalg.norm(training_vec)
+                mag_prod = test_vec_mag * training_vec_mag
+                cos = 0
+                if dot != 0 and mag_prod != 0:
+                    cos = dot / mag_prod
+                all_cosines.append(cos)
+            all_cosines_vec = np.asarray(all_cosines)
+            for i in range(0, kayy):
+                max_index = np.argmax(all_cosines_vec)
+                k_grades[i] = grades_copy[max_index]
+                all_cosines_vec[max_index] = 0
+
+            k_sum = np.sum(k_grades)
+            if k_sum >= 0:
+                results.append("1")
+            else:
+                results.append("-1")
+            test_count += 1
+        conn.send(results)
+        conn.close()
 
     @staticmethod
     def build_matrix(lines, word_bag):
