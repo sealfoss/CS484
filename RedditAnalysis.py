@@ -42,11 +42,32 @@ class Analyzer:
 
         return matrix
 	
-	@staticmethod
-	def knnAlgo(matrix1,matrix2):
-		for matrix1Line in matrix1:
-			for matrix2Line in matrix2:
-				print("pizza")
+    @staticmethod
+    def combine_two_lists(matrix1,matrix2):
+        combined_list = []
+    
+        for line1 in matrix1:
+            combined_list.append(line1)
+        for line2 in matrix2:
+            combined_list.append(line2)
+
+        return combined_list    
+
+    #takes in a third source of comments matrix as matrix1
+    #and the combined matrix of co and c1 as matrix2
+    @staticmethod
+    def knnAlgo(matrix1,matrix2):
+        dtype = [("dist",float)]
+        dist_list = []
+        for line1 in matrix1:
+            for line2 in matrix2:
+                dist = np.linalg.norm(line1-line2)
+                print(dist) 
+                dist_list.append((dist,line1)
+            #set_dtype = numpy.array(dist_list,dtype=dtype)
+            #sort_dist = numpy.sort(set_dtype,order='dist',kind='mergesort')
+            
+        
 
     @staticmethod
     def reduce_lines(lines):
@@ -326,7 +347,7 @@ class Analyzer:
             elif op_int == 3:
                 self.parse_lines()
             elif op_int == 4:
-                pass
+                self.knnAlgo(a.c_zero_matrix,a.c_one_matrix)
             elif op_int == 5:
                 pass
         else:
@@ -344,6 +365,6 @@ while a.is_running():
     a.print_menu()
     option = input()
     a.select_menu_option(option)
-	pdb.set_trace()
+    pdb.set_trace()
 print("Thanks for using the reddit analysis program!\n")
 quit(0)
