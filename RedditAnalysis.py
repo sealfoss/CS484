@@ -8,6 +8,19 @@ import numpy as np
 
 class Analyzer:
     def __init__(self):
+        self.c_id = 'R1_WMZ0uXs7OZA'
+        self.c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
+        self.p_word = 'mason4lyfe'
+        self.u_agent = 'Comment Pull by Reed'
+        self.u_name = 'cs484_bot'
+
+        self.test_url = None
+        self.test_lines = None
+        self.test_post_comments_count = 0
+        self.test_post_line_count = 0
+        self.test_matrix = None
+        self.min_post_line_len = 5
+
         self.running = True
 
         self.c_zero_lines = None
@@ -212,7 +225,7 @@ class Analyzer:
                 self.c_zero_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
                 self.c_one_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
                 print("Matrices completed successfully.")
-                self.options[2] = self.options[2] + "(Matrices present for existing classification data.)"
+                self.options[2] = "3)\tBuild word bag and training matrices. (Training matrices built successfully.)\n"
 
         else:
             print("Please select subreddits and associated comments for classifications "
@@ -306,7 +319,7 @@ class Analyzer:
 
         if pulled is None:
             try:
-                pulled = self.get_from_reddit(sub_name, max_posts, max_comments)
+                pulled = self.get_top_comments(sub_name, max_posts, max_comments)
             except praw.exceptions.PRAWException as err:
                 self.error_quit("Reddit doesn't like your sub name." + str(err))
                 return
@@ -335,20 +348,19 @@ class Analyzer:
             self.options[1] = "2)\tChoose subreddit representing classification 1. (Set to " + str(len(pulled)) \
                               + " comments from /r/" + sub_name + ".)\n"
 
-    def get_from_reddit(self, sub_name, max_top_posts, max_top_comments):
+    def get_reddit(self):
+        reddit = praw.Reddit(client_id=self.c_id,
+                             client_secret=self.c_secret,
+                             password=self.p_word,
+                             user_agent=self.u_agent,
+                             username=self.u_name)
+        return reddit
+
+    def get_top_comments(self, sub_name, max_top_posts, max_top_comments):
         print("Pulling the top " + str(max_top_comments) + " comments from the top "
               + str(max_top_posts) + " posts in /r/" + sub_name + ".\n")
 
-        c_id = 'R1_WMZ0uXs7OZA'
-        c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
-        p_word = 'mason4lyfe'
-        u_agent = 'Comment Pull by Reed'
-        u_name = 'cs484_bot'
-        reddit = praw.Reddit(client_id=c_id,
-                             client_secret=c_secret,
-                             password=p_word,
-                             user_agent=u_agent,
-                             username=u_name)
+        reddit = self.get_reddit()
         subreddit = reddit.subreddit(sub_name)
 
         out_filename = sub_name + "_p" + str(max_top_posts) + "_c" + str(max_top_comments) + ".dat"
@@ -381,6 +393,55 @@ class Analyzer:
     def is_running(self):
         return self.running
 
+    def get_post_comments(self):
+        # first, get comments from a given post
+        comment_list = []
+        reddit = self.get_reddit()
+        input_url = input("What is the URL of the post you would like to pull comments from?")
+        max_comments = int(input("What is the max amount of comments you want to pull from this post?"))
+        post = reddit.submission(url=input_url)
+        self.test_url = input_url
+        post.comments.replace_more(limit=0)
+        post.comment_sort = 'top'
+        comments = post.comments.list()
+        com_count = 0
+        for comment in comments:
+            body = str(comment.body)
+            if body is not None:
+                comment_list.append(body)
+                com_count += 1
+                if com_count >= max_comments:
+                    break
+        self.test_post_comments_count = com_count
+
+        # reduce the test lines in the same manner as we did w/ training lines
+        reduced_and_words = self.reduce_lines(comment_list)
+        reduced_test_lines = reduced_and_words[0]
+        # then go through the reduced lines and remove any words that aren't in training data
+        testable_lines = []
+        for reduced_line in reduced_test_lines:
+            new_line = []
+            for word in reduced_line:
+                if word in self.word_bag:
+                    new_line.append(word)
+            # if a line doesn't include enough words used in training data, omit it
+            if len(new_line) > self.min_post_line_len:
+                testable_lines.append(new_line)
+                print(new_line)
+        self.test_post_line_count = len(testable_lines)
+
+        # build the actual test matrix
+        self.test_matrix = np.zeros((self.test_post_line_count, len(self.word_bag)))
+        for i in range(0, len(testable_lines)):
+            line = testable_lines[i]
+            for j in range(0, len(line)):
+                word = line[j]
+                index = self.word_bag.index(word)
+                self.test_matrix[i, index] += 1
+        # all done
+        self.options[3] = "4)\tChoose a reddit post to pull comments from for testing. (" \
+                          + str(self.test_post_line_count) + " classifiable comments pulled from reddit.)\n"
+
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
         op_str = str(option).lower()
@@ -400,7 +461,7 @@ class Analyzer:
             elif op_int == 3:
                 self.parse_lines()
             elif op_int == 4:
-                pass
+                self.get_post_comments()
             elif op_int == 5:
                 pass
         else:
