@@ -170,6 +170,11 @@ class Analyzer:
         return [lines_reduced, words]
 
     def parse_lines(self):
+        if self.c_zero_lines is None or self.c_one_lines is None:
+            print("You must choose subreddit comments for classifications 0 and 1 before building "
+                  "a word bag and training matrices from them.")
+            return
+
         if self.c_zero_lines is not None and self.c_one_lines is not None:
             reduced_c_zero_lines = None
             reduced_c_zero_words = None
@@ -321,10 +326,10 @@ class Analyzer:
             try:
                 pulled = self.get_top_comments(sub_name, max_posts, max_comments)
             except praw.exceptions.PRAWException as err:
-                self.error_quit("Reddit doesn't like your sub name." + str(err))
+                self.error_quit("Reddit doesn't like your sub name: " + str(err))
                 return
             except prawcore.PrawcoreException as err:
-                self.error_quit("Reddit doesn't like your sub name." + str(err))
+                self.error_quit("Reddit doesn't like your sub name: " + str(err))
                 return
 
             print("Successfully pulled " + str(len(pulled)) + " comments from /r/" + sub_name + ".\n")
@@ -394,12 +399,39 @@ class Analyzer:
         return self.running
 
     def get_post_comments(self):
+        if self.c_zero_matrix is None or self.c_one_matrix is None:
+            print("A word bag and training matrix must be built for classifications 0 and 1 before choosing "
+                  "a reddit post comments section to classify.")
+            return
         # first, get comments from a given post
-        comment_list = []
         reddit = self.get_reddit()
-        input_url = input("What is the URL of the post you would like to pull comments from?")
-        max_comments = int(input("What is the max amount of comments you want to pull from this post?"))
-        post = reddit.submission(url=input_url)
+        max_comments = None
+        input_url = None
+        comment_list = []
+        post = None
+        while post is None:
+            while input_url is None:
+                input_url = input("What is the URL of the post you would like to pull comments from?")
+            while max_comments is None:
+                num_in = input("What is the max amount of comments you want to pull from this post?")
+                try:
+                    max_comments = int(num_in)
+                except ValueError:
+                    print("Please enter a valid integer value.")
+            try:
+                post = reddit.submission(url=input_url)
+            except praw.exceptions.PRAWException as err:
+                print("Reddit doesn't like the URL you gave it: " + str(err))
+                print("Please try again.")
+                post = None
+                input_url = None
+                max_comments = None
+            except prawcore.PrawcoreException as err:
+                print("Reddit doesn't like the URL you gave it: " + str(err))
+                print("Please try again.")
+                post = None
+                input_url = None
+                max_comments = None
         self.test_url = input_url
         post.comments.replace_more(limit=0)
         post.comment_sort = 'top'
@@ -427,7 +459,7 @@ class Analyzer:
             # if a line doesn't include enough words used in training data, omit it
             if len(new_line) > self.min_post_line_len:
                 testable_lines.append(new_line)
-                print(new_line)
+                # print(new_line)
         self.test_post_line_count = len(testable_lines)
 
         # build the actual test matrix
