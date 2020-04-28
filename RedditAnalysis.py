@@ -10,6 +10,13 @@ from random import randrange as rr
 
 class Analyzer:
     def __init__(self):
+
+        # this is the regex used to reduce each line, can be modified or changed
+        # this iteration includes the ' symbol
+        self.reduction_regex = r'[^a-zA-Z\']'
+        # this iteration includes only letters
+        # reduction_regex = r'[^a-zA-Z]'
+
         self.c_id = 'R1_WMZ0uXs7OZA'
         self.c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
         self.p_word = 'mason4lyfe'
@@ -31,13 +38,13 @@ class Analyzer:
         self.tfidf = None
         self.tfidf_normalized = None
 
-        self.c_zero_lines = None
-        self.c_zero_name = None
-        self.c_zero_matrix = None
+        self.c0_lines = None
+        self.c0_name = None
+        self.c0_matrix = None
 
-        self.c_one_lines = None
-        self.c_one_name = None
-        self.c_one_matrix = None
+        self.c1_lines = None
+        self.c1_name = None
+        self.c1_matrix = None
 
         self.word_bag = None
         self.word_bag_len = 0
@@ -50,7 +57,7 @@ class Analyzer:
                         "5)\tClassify comments from chosen reddit post based on training data.\n"]
 
     def scale_by_tfidf(self):
-        self.train_matrix = np.append(self.c_zero_matrix, self.c_one_matrix, axis=0)
+        self.train_matrix = np.append(self.c0_matrix, self.c1_matrix, axis=0)
         self.train_matrix_len = len(self.train_matrix)
         all_words_count = 0
         for i in range(0, self.train_matrix_len):
@@ -134,8 +141,7 @@ class Analyzer:
 
         return matrix
 
-    @staticmethod
-    def reduce_lines(lines):
+    def reduce_lines(self, lines):
         # reddit has some stop words that are unique to it as a platform. this can probably be expanded
         stop_words = set(stopwords.words('english'))
         custom_stop_words = ["[deleted]", "[removed]"]
@@ -143,16 +149,10 @@ class Analyzer:
         # this is arbitrary, and can probably be adjusted for better results
         min_line_len = 1
 
-        # this is the regex used to reduce each line, can be modified or changed
-        # this iteration includes the ' symbol
-        reduction_regex = r'[^a-zA-Z\']'
-        # this iteration includes only letters
-        # reduction_regex = r'[^a-zA-Z]'
-
         lines_reduced = []
         for line in lines:
             line_reduced = []
-            reduced = re.sub(reduction_regex, ' ', line)
+            reduced = re.sub(self.reduction_regex, ' ', line)
             split = list(reduced.split(' '))
             split = list(dict.fromkeys(split))
             for word in split:
@@ -169,12 +169,12 @@ class Analyzer:
         return [lines_reduced, words]
 
     def parse_lines(self):
-        if self.c_zero_lines is None or self.c_one_lines is None:
+        if self.c0_lines is None or self.c1_lines is None:
             print("You must choose subreddit comments for classifications 0 and 1 before building "
                   "a word bag and training matrices from them.")
             return
 
-        if self.c_zero_lines is not None and self.c_one_lines is not None:
+        if self.c0_lines is not None and self.c1_lines is not None:
             reduced_c_zero_lines = None
             reduced_c_zero_words = None
             reduced_c_one_lines = None
@@ -182,7 +182,7 @@ class Analyzer:
             keep_going = True
 
             print("Reducing lines in classification 0...")
-            reduced_c_zero = self.reduce_lines(self.c_zero_lines)
+            reduced_c_zero = self.reduce_lines(self.c0_lines)
             reduced_c_zero_lines = reduced_c_zero[0]
             reduced_c_zero_words = reduced_c_zero[1]
             print("Classification 0 reduced.")
@@ -203,7 +203,7 @@ class Analyzer:
 
             if keep_going:
                 print("Reducing lines in classification 1...")
-                reduced_c_one = self.reduce_lines(self.c_one_lines)
+                reduced_c_one = self.reduce_lines(self.c1_lines)
                 reduced_c_one_lines = reduced_c_one[0]
                 reduced_c_one_words = reduced_c_one[1]
                 print("Classification 1 reduced")
@@ -228,8 +228,8 @@ class Analyzer:
                 print("Both classification 1 and 2 have been reduced and a bag of words (size " + str(self.word_bag_len)
                       + ") has been defined.")
                 print("Building matrices from training data...")
-                self.c_zero_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
-                self.c_one_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
+                self.c0_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
+                self.c1_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
                 print("Matrices completed successfully.")
                 self.options[2] = "3)\tBuild word bag and training matrices. (Training matrices built successfully.)\n"
 
@@ -341,17 +341,17 @@ class Analyzer:
                 return
             out_file.write(sub_name + "\n")
             for comment in pulled:
-                no_newline = comment.replace('\n', ' ')
-                out_file.write(no_newline + "\n")
+                reduced = re.sub(self.reduction_regex, ' ', comment)
+                out_file.write(reduced + "\n")
 
         if c0c1:
-            self.c_zero_name = sub_name
-            self.c_zero_lines = pulled
+            self.c0_name = sub_name
+            self.c0_lines = pulled
             self.options[0] = "1)\tChoose subreddit representing classification 0. (Set to " + str(len(pulled)) \
                               + " comments from /r/" + sub_name + ".)\n"
         else:
-            self.c_one_name = sub_name
-            self.c_one_lines = pulled
+            self.c1_name = sub_name
+            self.c1_lines = pulled
             self.options[1] = "2)\tChoose subreddit representing classification 1. (Set to " + str(len(pulled)) \
                               + " comments from /r/" + sub_name + ".)\n"
 
@@ -401,7 +401,7 @@ class Analyzer:
         return self.running
 
     def get_post_comments(self):
-        if self.c_zero_matrix is None or self.c_one_matrix is None:
+        if self.c0_matrix is None or self.c1_matrix is None:
             print("A word bag and training matrix must be built for classifications 0 and 1 before choosing "
                   "a reddit post comments section to classify.")
             return
@@ -483,71 +483,75 @@ class Analyzer:
                           + str(self.test_post_line_count) + " classifiable comments pulled from reddit.)\n"
 
     def run_comparison(self):
-        if self.c_zero_matrix is None or self.c_one_matrix is None or self.word_bag is None or self.test_matrix is None:
+        if self.c0_matrix is None or self.c1_matrix is None or self.word_bag is None or self.test_matrix is None:
             print("Please designate classifications 0 and 1, and a reddit post for classification.")
             return
         print("Welcome to the classification part of the program.")
         k = self.initial_k
-        cross_val_loops = 0
-        while cross_val_loops < 1:
+        cross_validations = 0
+        while cross_validations < 1:
             print("How many times would you like to cross validate for a better value k?")
             loops_in = input("Please enter an integer value greater than zero "
                              "(keep it small or you'll be here all day).")
             try:
-                cross_val_loops = int(loops_in)
+                cross_validations = int(loops_in)
             except ValueError:
                 print("Invalid input, please try again.")
-                cross_val_loops = 0
-        print("Finding best value for k via cross validation. This will execute " + str(cross_val_loops) + " times.")
+                cross_validations = 0
+        print("Finding best value for k via cross validation. This will execute " + str(cross_validations) + " times.")
         k_results = []
-        for i in range(0, cross_val_loops):
-            print("Executing cross validation loop #" + str((i+1)) + " of " + str(cross_val_loops) + ".")
+
+        for i in range(0, cross_validations):
+            print("Executing cross validation loop #" + str((i + 1)) + " of " + str(cross_validations) + ".")
             print("Slicing training array into 50/50 random sampling...")
             # get random sampling from half of training data
-            random_c0_picks = self.pick_random_half(self.c_zero_matrix)
-            random_c1_picks = self.pick_random_half(self.c_one_matrix)
-            c0_train_slice = np.zeros((len(random_c0_picks[0]), self.word_bag_len))
-            c1_train_slice = np.zeros((len(random_c1_picks[0]), self.word_bag_len))
-            c0_test_slice = np.zeros((len(random_c0_picks[0]), self.word_bag_len))
-            c1_test_slice = np.zeros((len(random_c1_picks[0]), self.word_bag_len))
+            c0_picks = self.pick_random_half(self.c0_matrix)
+            c1_picks = self.pick_random_half(self.c1_matrix)
+            c0_picks_len = len(c0_picks)
+            c1_picks_len = len(c1_picks)
+            c0_train_slice = np.zeros((c0_picks_len, self.word_bag_len))
+            c1_train_slice = np.zeros((c1_picks_len, self.word_bag_len))
+            c0_test_slice = np.zeros((c0_picks_len, self.word_bag_len))
+            c1_test_slice = np.zeros((c1_picks_len, self.word_bag_len))
+            c0_picked = c0_picks[0]
+            c0_not_picked = c0_picks[1]
+            c1_picked = c1_picks[0]
+            c1_not_picked = c1_picks[1]
+            train_grades = []
+            test_grades = []
+            for j in range(0, c0_picks_len):
+                picked = c0_picked[j]
+                not_picked = c0_not_picked[j]
+                c0_train_slice[j] = self.c0_matrix[picked].copy()
+                c0_test_slice[j] = self.c0_matrix[not_picked].copy()
+                train_grades.append(int(-1))
+                test_grades.append(int(-1))
+            for j in range(0, c1_picks_len):
+                picked = c1_picked[j]
+                not_picked = c1_not_picked[j]
+                c1_train_slice[j] = self.c1_matrix[picked].copy()
+                c1_test_slice[j] = self.c1_matrix[not_picked].copy()
+                train_grades.append(int(1))
+                test_grades.append(int(1))
+            train_m = np.append(c0_train_slice, c1_train_slice, axis=0)
+            test_m = np.append(c0_test_slice, c1_test_slice, axis=0)
 
-            c0_train_slice_len = len(c0_train_slice)
-            c0_test_slice_len = len(c0_test_slice)
-            c1_train_slice_len = len(c1_train_slice)
-            c1_test_slice_len = len(c1_test_slice)
-            train_grades_len = c0_train_slice_len + c1_train_slice_len
-            train_grades = np.zeros(train_grades_len)
-            test_grades_len = c0_test_slice_len + c1_test_slice_len
-            test_grades = np.zeros(test_grades_len)
-            # -1 for c0, 1 or c1
-            for j in range(0, c0_train_slice_len):
-                pick = random_c0_picks[0][j]
-                c0_train_slice[j] = self.c_zero_matrix[pick].copy()
-                train_grades[j] = -1
-            for j in range(0, c0_test_slice_len):
-                not_picked = random_c0_picks[1][j]
-                c0_test_slice[j] = self.c_zero_matrix[not_picked].copy()
-                test_grades[j] = -1
-            for j in range(0, c1_train_slice_len):
-                pick = random_c1_picks[0][j]
-                c1_train_slice[j] = self.c_one_matrix[pick].copy()
-                train_grades[j+c0_train_slice_len] = 1
-            for j in range(0, c1_test_slice_len):
-                not_picked = random_c0_picks[1][j]
-                c0_test_slice[j] = self.c_zero_matrix[not_picked].copy()
-                test_grades[j+c0_test_slice_len] = 1
-            # combine training slices into single training and testing matrices
-            train_slice = np.append(c0_train_slice, c1_train_slice, axis=0)
-            test_slice = np.append(c0_test_slice, c1_test_slice, axis=0)
-            print("Running cosine classification on designated testing half of training data using k=" + str(k) + "...")
-            results = self.run_comparison_cos(k, train_slice, test_slice, train_grades)
-            num_correct = 0
-            for j in range(0, len(results)):
-                if results[j] == test_grades[j]:
-                    num_correct += 1
-            accuracy = 100 * num_correct / len(test_slice)
-            print("Found accuracy rate of " + str(accuracy) + "% for k=" + str(k) + ".")
+            results = self.run_comparison_cos(k, train_m, test_m, train_grades)
+            correct = 0
+            incorrect = 0
+            results_len = len(results)
+            for j in range(0, results_len):
+                result = results[j]
+                grade = test_grades[j]
+                r = int(result)
+                g = int(grade)
+                if r == g:
+                    correct += 1
+                else:
+                    incorrect += 1
+            accuracy = 100.0 * float(correct) / float(results_len)
             k_results.append([k, accuracy])
+            print("Found accuracy rate of " + str(accuracy) + "% for k=" + str(k) + ".")
             k = self.next_prime(k)
 
         best_k = 0
@@ -562,8 +566,8 @@ class Analyzer:
               + str(best_accuracy) + "%.")
         print("Running classification of full test data with k=" + str(best_k) + "...")
         grades = []
-        c0_len = len(self.c_zero_matrix)
-        c1_len = len(self.c_one_matrix)
+        c0_len = len(self.c0_matrix)
+        c1_len = len(self.c1_matrix)
         for i in range(0, c0_len):
             grades.append(-1)
         for i in range(c0_len, (c0_len + c1_len)):
@@ -574,16 +578,19 @@ class Analyzer:
         num_c0 = 0
         num_c1 = 0
         for i in range(0, len(results)):
-            if results[i] == -1:
+            r = results[i]
+            r_str = str(r)
+            # print(r_str)
+            if r_str == '-1':
                 num_c0 += 1
             else:
                 num_c1 += 1
         similarity_c0 = num_c0 * 100 / c0_len
         similarity_c1 = 100 - similarity_c0
         print("The classifier found " + str(num_c0) + " (" + str(similarity_c0) + "%)" + " of the " + str(c0_len)
-              + " classifiable comments to be similar to comments found in /r/" + self.c_zero_name + ".")
+              + " classifiable comments to be similar to comments found in /r/" + self.c0_name + ".")
         print("The classifier found " + str(num_c1) + " (" + str(similarity_c1) + "%)" + " of the " + str(c1_len)
-              + " classifiable comments to be similar to comments found in /r/" + self.c_one_name + ".")
+              + " classifiable comments to be similar to comments found in /r/" + self.c1_name + ".")
 
     def next_prime(self, n):
         prime = n+1
