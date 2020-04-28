@@ -5,8 +5,22 @@ import re
 from nltk.corpus import stopwords
 import numpy as np
 import pdb
+
 class Analyzer:
     def __init__(self):
+        self.c_id = 'R1_WMZ0uXs7OZA'
+        self.c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
+        self.p_word = 'mason4lyfe'
+        self.u_agent = 'Comment Pull by Reed'
+        self.u_name = 'cs484_bot'
+
+        self.test_url = None
+        self.test_lines = None
+        self.test_post_comments_count = 0
+        self.test_post_line_count = 0
+        self.test_matrix = None
+        self.min_post_line_len = 5
+
         self.running = True
 
         self.c_zero_lines = None
@@ -23,8 +37,100 @@ class Analyzer:
         self.options = ["1)\tChoose subreddit representing classification 0.\n",
                         "2)\tChoose subreddit representing classification 1.\n",
                         "3)\tBuild word bag and training matrices.\n",
-                        "4)\tTest a reddit post against training data.\n",
-                        "5)\tTest a reddit comment against training data.\n"]
+                        "4)\tChoose a reddit post to pull comments from for testing.\n",
+                        "5)\tClassify comments from chosen reddit post based on training data.\n"]
+
+
+
+
+    @staticmethod
+    def combine_two_lists(matrix1,matrix2):
+        combined_list = []
+
+        for line1 in matrix1:
+            combined_list.append(("1",line1))
+        for line2 in matrix2:
+            combined_list.append(("2",line2))
+
+        return combined_list
+	#matrix1 will have the 3rd source
+    #matrix2 will have both 1st and 2nd source
+    @staticmethod
+    def knnAlgo(matrix1,matrix2):
+        pdb.set_trace()
+        dtype = [("class_val",'U2'),("dist",float)]
+        dist_list = []
+        for line1 in matrix1:
+            for line2 in matrix2:
+                dist = np.linalg.norm(line1-line2[1])
+                print(dist)
+                dist_list.append((line2[0],dist))
+            pdb.set_trace()
+            set_dtype = np.array(dist_list,dtype=dtype)
+            sort_dist = np.sort(set_dtype,order='dist',kind='mergesort')
+            result_value = kneighbors(3,sort_dist)  
+
+        return 0
+
+    def kneighbors(k_value,matrix_list):
+        class_1 = 0
+        class_2 = 0
+
+        for i in range(k_value):
+            if matrix_list[i][0] == "1":
+                class_1 += 1
+            else:
+                class_2 += 1
+
+        if class_1 > class_2:
+            return "1"
+        return "2"
+
+
+    # this is literally copied and pasted.
+    # try to keep in mind that this function was written as a way to spread the work load over multiple processes
+    # kayy is your value k, given a dumb name to differentiate between other instances of that value in the program
+    # training_m_proc is the training data matrix
+    # test_slice is the slice of test matrix given to this process to work on.
+    # grades_copy are the grades for each line of the training matrix, -1 or 1.
+    # results is an array for storing test results in and sending back to the main process.
+    # conn is a device for synchronizing processes
+    def run_comparison_cos(self, kayy, training_m_proc, test_slice, grades_copy, results, conn):
+        percent_done = 0
+        test_len = test_slice.shape[0]
+        print("Comparing " + str(test_len) + " vectors to training matrix of shape "
+              + str(training_m_proc.shape) + " by cosine,  k = " + str(kayy))
+        test_count = 0
+        for test_vec in test_slice:
+            new_percent = (100 * test_count) / test_len
+            if (new_percent - percent_done) > 1:
+                percent_done = int(new_percent)
+                print("Progress: " + str(percent_done) + "% finished (" + str(test_count) + "/" + str(test_len) + ")")
+            k_grades = np.zeros((kayy,), dtype=int)
+            all_cosines = list()
+            test_vec_mag = np.linalg.norm(test_vec)
+            for training_vec in training_m_proc:
+                dot = np.dot(test_vec, training_vec)
+                training_vec_mag = np.linalg.norm(training_vec)
+                mag_prod = test_vec_mag * training_vec_mag
+                cos = 0
+                if dot != 0 and mag_prod != 0:
+                    cos = dot / mag_prod
+                all_cosines.append(cos)
+            all_cosines_vec = np.asarray(all_cosines)
+            for i in range(0, kayy):
+                max_index = np.argmax(all_cosines_vec)
+                k_grades[i] = grades_copy[max_index]
+                all_cosines_vec[max_index] = 0
+
+            k_sum = np.sum(k_grades)
+            if k_sum >= 0:
+                results.append("1")
+            else:
+                results.append("-1")
+            test_count += 1
+        conn.send(results)
+        conn.close()
 
     @staticmethod
     def build_matrix(lines, word_bag):
@@ -37,37 +143,10 @@ class Analyzer:
             line = lines[i]
             for j in range(0, len(line)):
                 word = line[j]
-                index = word_bag.index(word) #What is this used for than?
-                matrix[i,index] += 1
+                index = word_bag.index(word)
+                matrix[i, index] += 1
 
         return matrix
-	
-    @staticmethod
-    def combine_two_lists(matrix1,matrix2):
-        combined_list = []
-    
-        for line1 in matrix1:
-            combined_list.append(line1)
-        for line2 in matrix2:
-            combined_list.append(line2)
-
-        return combined_list    
-
-    #takes in a third source of comments matrix as matrix1
-    #and the combined matrix of co and c1 as matrix2
-    @staticmethod
-    def knnAlgo(matrix1,matrix2):
-        dtype = [("dist",float)]
-        dist_list = []
-        for line1 in matrix1:
-            for line2 in matrix2:
-                dist = np.linalg.norm(line1-line2)
-                print(dist) 
-                dist_list.append((dist,line1)
-            #set_dtype = numpy.array(dist_list,dtype=dtype)
-            #sort_dist = numpy.sort(set_dtype,order='dist',kind='mergesort')
-            
-        
 
     @staticmethod
     def reduce_lines(lines):
@@ -104,6 +183,11 @@ class Analyzer:
         return [lines_reduced, words]
 
     def parse_lines(self):
+        if self.c_zero_lines is None or self.c_one_lines is None:
+            print("You must choose subreddit comments for classifications 0 and 1 before building "
+                  "a word bag and training matrices from them.")
+            return
+
         if self.c_zero_lines is not None and self.c_one_lines is not None:
             reduced_c_zero_lines = None
             reduced_c_zero_words = None
@@ -159,7 +243,7 @@ class Analyzer:
                 self.c_zero_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
                 self.c_one_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
                 print("Matrices completed successfully.")
-                self.options[2] = self.options[2] + "(Matrices present for existing classification data.)"
+                self.options[2] = "3)\tBuild word bag and training matrices. (Training matrices built successfully.)\n"
 
         else:
             print("Please select subreddits and associated comments for classifications "
@@ -253,12 +337,12 @@ class Analyzer:
 
         if pulled is None:
             try:
-                pulled = self.get_from_reddit(sub_name, max_posts, max_comments)
-            except praw.exceptions.PRAWException:
-                self.error_quit("Reddit doesn't like your sub name.")
+                pulled = self.get_top_comments(sub_name, max_posts, max_comments)
+            except praw.exceptions.PRAWException as err:
+                self.error_quit("Reddit doesn't like your sub name: " + str(err))
                 return
-            except prawcore.PrawcoreException:
-                self.error_quit("Reddit doesn't like your sub name.")
+            except prawcore.PrawcoreException as err:
+                self.error_quit("Reddit doesn't like your sub name: " + str(err))
                 return
 
             print("Successfully pulled " + str(len(pulled)) + " comments from /r/" + sub_name + ".\n")
@@ -282,20 +366,19 @@ class Analyzer:
             self.options[1] = "2)\tChoose subreddit representing classification 1. (Set to " + str(len(pulled)) \
                               + " comments from /r/" + sub_name + ".)\n"
 
-    def get_from_reddit(self, sub_name, max_top_posts, max_top_comments):
+    def get_reddit(self):
+        reddit = praw.Reddit(client_id=self.c_id,
+                             client_secret=self.c_secret,
+                             password=self.p_word,
+                             user_agent=self.u_agent,
+                             username=self.u_name)
+        return reddit
+
+    def get_top_comments(self, sub_name, max_top_posts, max_top_comments):
         print("Pulling the top " + str(max_top_comments) + " comments from the top "
               + str(max_top_posts) + " posts in /r/" + sub_name + ".\n")
 
-        c_id = 'R1_WMZ0uXs7OZA'
-        c_secret = 'ggr71VKdpYQlL7cYwyT_QAtT4VI'
-        p_word = 'mason4lyfe'
-        u_agent = 'Comment Pull by Reed'
-        u_name = 'cs484_bot'
-        reddit = praw.Reddit(client_id=c_id,
-                             client_secret=c_secret,
-                             password=p_word,
-                             user_agent=u_agent,
-                             username=u_name)
+        reddit = self.get_reddit()
         subreddit = reddit.subreddit(sub_name)
 
         out_filename = sub_name + "_p" + str(max_top_posts) + "_c" + str(max_top_comments) + ".dat"
@@ -328,6 +411,82 @@ class Analyzer:
     def is_running(self):
         return self.running
 
+    def get_post_comments(self):
+        if self.c_zero_matrix is None or self.c_one_matrix is None:
+            print("A word bag and training matrix must be built for classifications 0 and 1 before choosing "
+                  "a reddit post comments section to classify.")
+            return
+        # first, get comments from a given post
+        reddit = self.get_reddit()
+        max_comments = None
+        input_url = None
+        comment_list = []
+        post = None
+        while post is None:
+            while input_url is None:
+                input_url = input("What is the URL of the post you would like to pull comments from?")
+            while max_comments is None:
+                num_in = input("What is the max amount of comments you want to pull from this post?")
+                try:
+                    max_comments = int(num_in)
+                except ValueError:
+                    print("Please enter a valid integer value.")
+            try:
+                post = reddit.submission(url=input_url)
+            except praw.exceptions.PRAWException as err:
+                print("Reddit doesn't like the URL you gave it: " + str(err))
+                print("Please try again.")
+                post = None
+                input_url = None
+                max_comments = None
+            except prawcore.PrawcoreException as err:
+                print("Reddit doesn't like the URL you gave it: " + str(err))
+                print("Please try again.")
+                post = None
+                input_url = None
+                max_comments = None
+        self.test_url = input_url
+        post.comments.replace_more(limit=0)
+        post.comment_sort = 'top'
+        comments = post.comments.list()
+        com_count = 0
+        for comment in comments:
+            body = str(comment.body)
+            if body is not None:
+                comment_list.append(body)
+                com_count += 1
+                if com_count >= max_comments:
+                    break
+        self.test_post_comments_count = com_count
+
+        # reduce the test lines in the same manner as we did w/ training lines
+        reduced_and_words = self.reduce_lines(comment_list)
+        reduced_test_lines = reduced_and_words[0]
+        # then go through the reduced lines and remove any words that aren't in training data
+        testable_lines = []
+        for reduced_line in reduced_test_lines:
+            new_line = []
+            for word in reduced_line:
+                if word in self.word_bag:
+                    new_line.append(word)
+            # if a line doesn't include enough words used in training data, omit it
+            if len(new_line) > self.min_post_line_len:
+                testable_lines.append(new_line)
+                # print(new_line)
+        self.test_post_line_count = len(testable_lines)
+
+        # build the actual test matrix
+        self.test_matrix = np.zeros((self.test_post_line_count, len(self.word_bag)))
+        for i in range(0, len(testable_lines)):
+            line = testable_lines[i]
+            for j in range(0, len(line)):
+                word = line[j]
+                index = self.word_bag.index(word)
+                self.test_matrix[i, index] += 1
+        # all done
+        self.options[3] = "4)\tChoose a reddit post to pull comments from for testing. (" \
+                          + str(self.test_post_line_count) + " classifiable comments pulled from reddit.)\n"
+
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
         op_str = str(option).lower()
@@ -347,8 +506,10 @@ class Analyzer:
             elif op_int == 3:
                 self.parse_lines()
             elif op_int == 4:
-                self.knnAlgo(a.c_zero_matrix,a.c_one_matrix)
+                self.get_post_comments()
             elif op_int == 5:
+                overall_matrix = self.combine_two_lists(self.c_zero_matrix,self.c_one_matrix)
+                self.knnAlgo(self.test_matrix,overall_matrix)
                 pass
         else:
             print("Invalid input, please try again.\n")
@@ -365,6 +526,5 @@ while a.is_running():
     a.print_menu()
     option = input()
     a.select_menu_option(option)
-    pdb.set_trace()
 print("Thanks for using the reddit analysis program!\n")
 quit(0)
