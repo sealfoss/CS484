@@ -575,9 +575,10 @@ class Analyzer:
         results = self.run_comparison_cos(best_k, self.train_matrix, self.test_matrix, grades)
 
         print("Classification complete. Generating report...")
+        results_len = len(results)
         num_c0 = 0
         num_c1 = 0
-        for i in range(0, len(results)):
+        for i in range(0, results_len):
             r = results[i]
             r_str = str(r)
             # print(r_str)
@@ -585,12 +586,12 @@ class Analyzer:
                 num_c0 += 1
             else:
                 num_c1 += 1
-        similarity_c0 = num_c0 * 100 / c0_len
-        similarity_c1 = 100 - similarity_c0
-        print("The classifier found " + str(num_c0) + " (" + str(similarity_c0) + "%)" + " of the " + str(c0_len)
-              + " classifiable comments to be similar to comments found in /r/" + self.c0_name + ".")
-        print("The classifier found " + str(num_c1) + " (" + str(similarity_c1) + "%)" + " of the " + str(c1_len)
-              + " classifiable comments to be similar to comments found in /r/" + self.c1_name + ".")
+        similarity_c0 = float(num_c0) * 100.0 / float(results_len)
+        similarity_c1 = float(num_c1) * 100.0 / float(results_len)
+        print("The classifier found " + str(num_c0) + " of the " + str(len(results)) + " classifiable comments "
+               + " (" + str(similarity_c0) + "%)" + " to be similar to comments found in /r/" + self.c0_name + ".")
+        print("The classifier found " + str(num_c1) + " of the " + str(len(results)) + " classifiable comments "
+              + " (" + str(similarity_c1) + "%)" + " to be similar to comments found in /r/" + self.c1_name + ".")
 
     def next_prime(self, n):
         prime = n+1
