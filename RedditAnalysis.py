@@ -4,6 +4,8 @@ import prawcore
 import re
 from nltk.corpus import stopwords
 import numpy as np
+import math
+from random import randrange as rr
 
 
 class Analyzer:
@@ -13,6 +15,8 @@ class Analyzer:
         self.p_word = 'mason4lyfe'
         self.u_agent = 'Comment Pull by Reed'
         self.u_name = 'cs484_bot'
+        self.running = True
+        self.initial_k = 7
 
         self.test_url = None
         self.test_lines = None
@@ -21,7 +25,11 @@ class Analyzer:
         self.test_matrix = None
         self.min_post_line_len = 5
 
-        self.running = True
+        self.train_matrix = None
+        self.train_matrix_len = 0
+
+        self.tfidf = None
+        self.tfidf_normalized = None
 
         self.c_zero_lines = None
         self.c_zero_name = None
@@ -32,6 +40,7 @@ class Analyzer:
         self.c_one_matrix = None
 
         self.word_bag = None
+        self.word_bag_len = 0
         self.test_lines = None
         self.greeting = "\nPlease choose from the following options ('q' to quit):\n"
         self.options = ["1)\tChoose subreddit representing classification 0.\n",
@@ -40,39 +49,28 @@ class Analyzer:
                         "4)\tChoose a reddit post to pull comments from for testing.\n",
                         "5)\tClassify comments from chosen reddit post based on training data.\n"]
 
-    # this was my solution for tfidf from hw1. nothing about it works here, literal copy and paste
-    # i'll try to hook it up to the class correctly, let me know if you have better ideas.
-    # had to comment out most of it to keep it from throwing errors
-    def tfidf(self):
-        print("Building TFIDF array...")
-        print("Counting all instances of all words used in training lines...")
+    def scale_by_tfidf(self):
+        self.train_matrix = np.append(self.c_zero_matrix, self.c_one_matrix, axis=0)
+        self.train_matrix_len = len(self.train_matrix)
         all_words_count = 0
-        """
-        for i in range(0, training_matrix.shape[0]):
-            all_words_count += int(np.sum(training_matrix[i]))
-        print("Found " + str(all_words_count) + " instances of all words used in training lines.")
-        TFIDF = np.zeros(word_bag_len)
-        total_times_used = np.sum(training_matrix, axis=0)
-        print("Calculating TF * IDF * Normalization for each word.")
-        for i in range(0, len(word_bag)):
-            TF = total_times_used[i] / float(all_words_count)
+        for i in range(0, self.train_matrix_len):
+            all_words_count += int(np.sum(self.train_matrix[i]))
+        self.tfidf = np.zeros(self.word_bag_len)
+        total_times_used = np.sum(self.train_matrix, axis=0)
+        for i in range(0, self.word_bag_len):
+            tf = total_times_used[i] / float(all_words_count)
             lines_with_word = 0
-            for j in range(0, training_lines_len):
-                if training_matrix[j, i] > 0:
+            for j in range(0, self.train_matrix_len):
+                if self.train_matrix[j, i] > 0:
                     lines_with_word += 1
-            IDF = 0
+            idf = 0
             if lines_with_word > 0:
-                IDF = math.log(training_lines_len / float(lines_with_word))
-                print("IDF: " + str(IDF))
-            TFIDF[i] = TF * IDF
-        print("TFIDF array built. Normalizing...")
-        TFIDF_mag = np.linalg.norm(TFIDF)
-        TFIDF_normalized = TFIDF / TFIDF_mag
-        print("Scaling test and training matrix by TFIDF...")
-        training_matrix *= TFIDF_normalized
-        test_matrix *= TFIDF_normalized
-        print("Testing and training matricies scaled by TFIDF.")
-        """
+                idf = math.log(self.train_matrix_len / float(lines_with_word))
+            self.tfidf[i] = tf * idf
+        tfidf_mag = np.linalg.norm(self.tfidf)
+        self.tfidf_normalized = self.tfidf / tfidf_mag
+        self.train_matrix *= self.tfidf_normalized
+        self.test_matrix *= self.tfidf_normalized
 
     # this is literally copied and pasted.
     # try to keep in mind that this function was written as a way to spread the work load over multiple processes
@@ -82,21 +80,23 @@ class Analyzer:
     # grades_copy are the grades for each line of the training matrix, -1 or 1.
     # results is an array for storing test results in and sending back to the main process.
     # conn is a device for synchronizing processes
-    def run_comparison_cos(self, kayy, training_m_proc, test_slice, grades_copy, results, conn):
+    @staticmethod
+    def run_comparison_cos(kay, train_m, test_m, grades):
+        results = []
         percent_done = 0
-        test_len = test_slice.shape[0]
+        test_len = test_m.shape[0]
         print("Comparing " + str(test_len) + " vectors to training matrix of shape "
-              + str(training_m_proc.shape) + " by cosine,  k = " + str(kayy))
+              + str(train_m.shape) + " by cosine,  k = " + str(kay))
         test_count = 0
-        for test_vec in test_slice:
+        for test_vec in test_m:
             new_percent = (100 * test_count) / test_len
             if (new_percent - percent_done) > 1:
                 percent_done = int(new_percent)
                 print("Progress: " + str(percent_done) + "% finished (" + str(test_count) + "/" + str(test_len) + ")")
-            k_grades = np.zeros((kayy,), dtype=int)
+            k_grades = np.zeros((kay,), dtype=int)
             all_cosines = list()
             test_vec_mag = np.linalg.norm(test_vec)
-            for training_vec in training_m_proc:
+            for training_vec in train_m:
                 dot = np.dot(test_vec, training_vec)
                 training_vec_mag = np.linalg.norm(training_vec)
                 mag_prod = test_vec_mag * training_vec_mag
@@ -105,9 +105,9 @@ class Analyzer:
                     cos = dot / mag_prod
                 all_cosines.append(cos)
             all_cosines_vec = np.asarray(all_cosines)
-            for i in range(0, kayy):
+            for i in range(0, kay):
                 max_index = np.argmax(all_cosines_vec)
-                k_grades[i] = grades_copy[max_index]
+                k_grades[i] = grades[max_index]
                 all_cosines_vec[max_index] = 0
 
             k_sum = np.sum(k_grades)
@@ -116,8 +116,7 @@ class Analyzer:
             else:
                 results.append("-1")
             test_count += 1
-        conn.send(results)
-        conn.close()
+        return results
 
     @staticmethod
     def build_matrix(lines, word_bag):
@@ -225,7 +224,9 @@ class Analyzer:
 
             if keep_going:
                 self.word_bag = list(reduced_c_one_words.union(reduced_c_zero_words))
-                print("Both classification 1 and 2 have been reduced and a bag of words has been defined.")
+                self.word_bag_len = len(self.word_bag)
+                print("Both classification 1 and 2 have been reduced and a bag of words (size " + str(self.word_bag_len)
+                      + ") has been defined.")
                 print("Building matrices from training data...")
                 self.c_zero_matrix = self.build_matrix(reduced_c_zero_lines, self.word_bag)
                 self.c_one_matrix = self.build_matrix(reduced_c_one_lines, self.word_bag)
@@ -300,7 +301,7 @@ class Analyzer:
         max_posts = selected_sub[1]
         max_comments = selected_sub[2]
         pulled = None
-        filename = sub_name + ".dat"
+        filename = sub_name + "_p" + str(max_posts) + "_c" + str(max_comments) + ".dat"
         found = True
         in_file = None
         try:
@@ -340,7 +341,8 @@ class Analyzer:
                 return
             out_file.write(sub_name + "\n")
             for comment in pulled:
-                out_file.write(comment + "\n")
+                no_newline = comment.replace('\n', ' ')
+                out_file.write(no_newline + "\n")
 
         if c0c1:
             self.c_zero_name = sub_name
@@ -445,6 +447,7 @@ class Analyzer:
                 if com_count >= max_comments:
                     break
         self.test_post_comments_count = com_count
+        print("Successfully pulled " + str(com_count) + " comments from post \"" + post.title + "\".")
 
         # reduce the test lines in the same manner as we did w/ training lines
         reduced_and_words = self.reduce_lines(comment_list)
@@ -461,7 +464,9 @@ class Analyzer:
                 testable_lines.append(new_line)
                 # print(new_line)
         self.test_post_line_count = len(testable_lines)
-
+        print("Out of those comments, " + str(self.test_post_line_count)
+              + " were found to be classifiable, based on training data.")
+        print("Building test matrix from classifiable comments...")
         # build the actual test matrix
         self.test_matrix = np.zeros((self.test_post_line_count, len(self.word_bag)))
         for i in range(0, len(testable_lines)):
@@ -470,9 +475,151 @@ class Analyzer:
                 word = line[j]
                 index = self.word_bag.index(word)
                 self.test_matrix[i, index] += 1
+        print("Scaling test and training matrices by TF/IDF...")
+        self.scale_by_tfidf()
+        print("Test and training matrices built and ready for classification.")
         # all done
         self.options[3] = "4)\tChoose a reddit post to pull comments from for testing. (" \
                           + str(self.test_post_line_count) + " classifiable comments pulled from reddit.)\n"
+
+    def run_comparison(self):
+        if self.c_zero_matrix is None or self.c_one_matrix is None or self.word_bag is None or self.test_matrix is None:
+            print("Please designate classifications 0 and 1, and a reddit post for classification.")
+            return
+        print("Welcome to the classification part of the program.")
+        k = self.initial_k
+        cross_val_loops = 0
+        while cross_val_loops < 1:
+            print("How many times would you like to cross validate for a better value k?")
+            loops_in = input("Please enter an integer value greater than zero "
+                             "(keep it small or you'll be here all day).")
+            try:
+                cross_val_loops = int(loops_in)
+            except ValueError:
+                print("Invalid input, please try again.")
+                cross_val_loops = 0
+        print("Finding best value for k via cross validation. This will execute " + str(cross_val_loops) + " times.")
+        k_results = []
+        for i in range(0, cross_val_loops):
+            print("Executing cross validation loop #" + str((i+1)) + " of " + str(cross_val_loops) + ".")
+            print("Slicing training array into 50/50 random sampling...")
+            # get random sampling from half of training data
+            random_c0_picks = self.pick_random_half(self.c_zero_matrix)
+            random_c1_picks = self.pick_random_half(self.c_one_matrix)
+            c0_train_slice = np.zeros((len(random_c0_picks[0]), self.word_bag_len))
+            c1_train_slice = np.zeros((len(random_c1_picks[0]), self.word_bag_len))
+            c0_test_slice = np.zeros((len(random_c0_picks[0]), self.word_bag_len))
+            c1_test_slice = np.zeros((len(random_c1_picks[0]), self.word_bag_len))
+
+            c0_train_slice_len = len(c0_train_slice)
+            c0_test_slice_len = len(c0_test_slice)
+            c1_train_slice_len = len(c1_train_slice)
+            c1_test_slice_len = len(c1_test_slice)
+            train_grades_len = c0_train_slice_len + c1_train_slice_len
+            train_grades = np.zeros(train_grades_len)
+            test_grades_len = c0_test_slice_len + c1_test_slice_len
+            test_grades = np.zeros(test_grades_len)
+            # -1 for c0, 1 or c1
+            for j in range(0, c0_train_slice_len):
+                pick = random_c0_picks[0][j]
+                c0_train_slice[j] = self.c_zero_matrix[pick].copy()
+                train_grades[j] = -1
+            for j in range(0, c0_test_slice_len):
+                not_picked = random_c0_picks[1][j]
+                c0_test_slice[j] = self.c_zero_matrix[not_picked].copy()
+                test_grades[j] = -1
+            for j in range(0, c1_train_slice_len):
+                pick = random_c1_picks[0][j]
+                c1_train_slice[j] = self.c_one_matrix[pick].copy()
+                train_grades[j+c0_train_slice_len] = 1
+            for j in range(0, c1_test_slice_len):
+                not_picked = random_c0_picks[1][j]
+                c0_test_slice[j] = self.c_zero_matrix[not_picked].copy()
+                test_grades[j+c0_test_slice_len] = 1
+            # combine training slices into single training and testing matrices
+            train_slice = np.append(c0_train_slice, c1_train_slice, axis=0)
+            test_slice = np.append(c0_test_slice, c1_test_slice, axis=0)
+            print("Running cosine classification on designated testing half of training data using k=" + str(k) + "...")
+            results = self.run_comparison_cos(k, train_slice, test_slice, train_grades)
+            num_correct = 0
+            for j in range(0, len(results)):
+                if results[j] == test_grades[j]:
+                    num_correct += 1
+            accuracy = 100 * num_correct / len(test_slice)
+            print("Found accuracy rate of " + str(accuracy) + "% for k=" + str(k) + ".")
+            k_results.append([k, accuracy])
+            k = self.next_prime(k)
+
+        best_k = 0
+        best_accuracy = 0
+        for k_result in k_results:
+            k = k_result[0]
+            accuracy = k_result[1]
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_k = k
+        print("Cross validation found k=" + str(best_k) + " to be the best value for k, with an accuracy rating of "
+              + str(best_accuracy) + "%.")
+        print("Running classification of full test data with k=" + str(best_k) + "...")
+        grades = []
+        c0_len = len(self.c_zero_matrix)
+        c1_len = len(self.c_one_matrix)
+        for i in range(0, c0_len):
+            grades.append(-1)
+        for i in range(c0_len, (c0_len + c1_len)):
+            grades.append(1)
+        results = self.run_comparison_cos(best_k, self.train_matrix, self.test_matrix, grades)
+
+        print("Classification complete. Generating report...")
+        num_c0 = 0
+        num_c1 = 0
+        for i in range(0, len(results)):
+            if results[i] == -1:
+                num_c0 += 1
+            else:
+                num_c1 += 1
+        similarity_c0 = num_c0 * 100 / c0_len
+        similarity_c1 = 100 - similarity_c0
+        print("The classifier found " + str(num_c0) + " (" + str(similarity_c0) + "%)" + " of the " + str(c0_len)
+              + " classifiable comments to be similar to comments found in /r/" + self.c_zero_name + ".")
+        print("The classifier found " + str(num_c1) + " (" + str(similarity_c1) + "%)" + " of the " + str(c1_len)
+              + " classifiable comments to be similar to comments found in /r/" + self.c_one_name + ".")
+
+    def next_prime(self, n):
+        prime = n+1
+        while not self.is_prime(prime):
+            prime += 1
+        return prime
+
+    @staticmethod
+    def is_prime(n):
+        # only works with positive numbers
+        prime = True
+        if n <= 3:
+            prime = True
+        elif n % 2 == 0:
+            prime = False
+        elif n < 9:
+            prime = True
+        else:
+            half_n = int(n/2)
+            for i in range(3, half_n):
+                if n % i == 0:
+                    prime = False
+                    break
+        return prime
+
+    @staticmethod
+    def pick_random_half(matrix):
+        m_len = len(matrix)
+        picks = np.arange(0, m_len)
+        picks = list(picks)
+        not_picked = []
+        while len(picks) >= (m_len/2):
+            ri = rr(len(picks))
+            popped = picks.pop(ri)
+            not_picked.append(popped)
+        return [picks, not_picked]
 
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
@@ -495,7 +642,7 @@ class Analyzer:
             elif op_int == 4:
                 self.get_post_comments()
             elif op_int == 5:
-                pass
+                self.run_comparison()
         else:
             print("Invalid input, please try again.\n")
 
