@@ -185,7 +185,6 @@ class Analyzer:
 
     @staticmethod
     def build_matrix(lines, word_bag):
-
         row_count = len(lines)
         col_count = len(word_bag)
         matrix = np.zeros((row_count, col_count))
@@ -289,23 +288,25 @@ class Analyzer:
                 print("Building matrices from training data...")
                 self.c0_matrix = self.build_matrix(reduced_c0_lines, self.word_bag)
                 self.c1_matrix = self.build_matrix(reduced_c1_lines, self.word_bag)
+                matrix_len = min(len(self.c0_matrix), len(self.c1_matrix))
                 print("Matrices built.")
 
                 print("Generating grades array...")
-                grades_c0 = [-1] * len(self.c0_matrix)
-                grades_c1 = [1] * len(self.c1_matrix)
+                grades_c0 = [-1] * matrix_len
+                grades_c1 = [1] * matrix_len
                 grades_c0.extend(grades_c1)
                 self.train_grades = grades_c0
-                print("Grades array completed.")
+                print("Grades array completed, length: " + str(len(self.train_grades)))
 
                 print("Combining matrices into one, monolithic training matrix...")
-                self.train_matrix = np.append(self.c0_matrix, self.c1_matrix, axis=0)
-                print("Matrices combined.")
+                self.train_matrix = np.append(self.c0_matrix[0:matrix_len], self.c1_matrix[0:matrix_len], axis=0)
+                print("Matrices combined into master training matrix with shape: (" + str(len(self.train_matrix)) + ", "
+                      + str(len(self.word_bag)) + ")")
 
-                # buildint TF/IDF takes a long time. Why not read/write from file?
+                # building TF/IDF takes a long time. Why not read/write from file?
                 loaded_from_file = None
-                filename = self.c0_name + "_c" + str(len(self.c0_matrix)) + "_" + self.c1_name + "_c"\
-                           + str(len(self.c1_matrix)) + "_w" + str(self.word_bag_len) + "_tfidf.npy"
+                filename = self.c0_name + "_" + self.c1_name + "_len" + str(matrix_len) + "_w"\
+                           + str(self.word_bag_len) + "_tfidf.npy"
                 read_file = None
                 try:
                     read_file = open(filename, "rb")
@@ -608,7 +609,6 @@ class Analyzer:
             sentiments.append(score)
         self.sentiments = sentiments
 
-
     @staticmethod
     def get_random_split(n):
         picked = list(range(n))
@@ -622,7 +622,10 @@ class Analyzer:
     def get_accuracy(results, answers, total):
         if len(results) is not total or len(answers) is not total:
             print("You can't get accuracy from mismatched results and answers lists!")
-            return None
+            print(str(len(results)))
+            print(str(len(answers)))
+            print(total)
+            # return None
         correct = 0
         incorrect = 0
         for i in range(0, total):
