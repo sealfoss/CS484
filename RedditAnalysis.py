@@ -11,6 +11,10 @@ import time
 
 class Analyzer:
     def __init__(self):
+        # words for sentiment analysis
+        self.words_pos = None
+        self.words_neg = None
+        self.sentiments = None
 
         # this is the regex used to reduce each line, can be modified or changed
         # this iteration includes the ' symbol
@@ -58,6 +62,31 @@ class Analyzer:
                         "3)\tBuild word bag and training matrices.\n",
                         "4)\tChoose a reddit post to pull comments from for testing.\n",
                         "5)\tClassify comments from chosen reddit post based on training data.\n"]
+
+    def read_words(self):
+        self.words_pos = []
+        self.words_neg = []
+        filename_pos = "words_positive.txt"
+        filename_neg = "words_negative.txt"
+        pos_file = None
+        neg_file = None
+        try:
+            pos_file = open(filename_pos, "r")
+            self.words_pos = pos_file.read().splitlines()
+            pos_file.close()
+        except FileNotFoundError:
+            print("Could not locate words_positive.txt")
+        finally:
+            if pos_file is not None:
+                pos_file.close()
+        try:
+            neg_file = open(filename_neg, "r")
+            self.words_neg = neg_file.read().splitlines()
+        except FileNotFoundError:
+            print("Could not locate words_negative.txt")
+        finally:
+            if neg_file is not None:
+                neg_file.close()
 
     @staticmethod
     def get_tfidf(train_matrix, word_bag):
@@ -549,6 +578,8 @@ class Analyzer:
         self.test_post_line_count = len(testable_lines)
         print("Out of those comments, " + str(self.test_post_line_count)
               + " were found to be classifiable, based on training data.")
+        print("Extracting sentiment from each classifiable comment...")
+        self.extract_sentiments(testable_lines)
         print("Building test matrix from classifiable comments...")
         # build the actual test matrix
         self.test_matrix = np.zeros((self.test_post_line_count, len(self.word_bag)))
@@ -564,6 +595,19 @@ class Analyzer:
         # all done
         self.options[3] = "4)\tChoose a reddit post to pull comments from for testing. (" \
                           + str(self.test_post_line_count) + " classifiable comments pulled from reddit.)\n"
+
+    def extract_sentiments(self, comments):
+        sentiments = []
+        for comment in comments:
+            score = 0
+            for word in comment:
+                if word in self.words_pos:
+                    score += 1
+                if word in self.words_neg:
+                    score -= 1
+            sentiments.append(score)
+        self.sentiments = sentiments
+
 
     @staticmethod
     def get_random_split(n):
@@ -667,10 +711,20 @@ class Analyzer:
                 num_c1 += 1
         similarity_c0 = float(num_c0) * 100.0 / float(results_len)
         similarity_c1 = float(num_c1) * 100.0 / float(results_len)
+        sentiment_pos = 0
+        sentiment_neg = 0
+        for sentiment in self.sentiments:
+            if sentiment > 0:
+                sentiment_pos += 1
+            elif sentiment < 0:
+                sentiment_neg += 1
         print("The classifier found " + str(num_c0) + " of the " + str(len(results)) + " classifiable comments "
               + " (" + str(similarity_c0) + "%)" + " to be similar to comments found in /r/" + self.c0_name + ".")
         print("The classifier found " + str(num_c1) + " of the " + str(len(results)) + " classifiable comments "
               + " (" + str(similarity_c1) + "%)" + " to be similar to comments found in /r/" + self.c1_name + ".")
+        print("Out of " + str(len(results)) + ", the classifier found " + str(sentiment_pos)
+              + " comments from reddit post to be positive in nature, while " + str(sentiment_neg) +
+              " comments from the post were found to be negative in nature.")
         run_time = time.time() - start_time
         print("Running time: " + str(run_time) + "s.")
 
@@ -710,9 +764,6 @@ class Analyzer:
             not_picked.append(popped)
         return [picks, not_picked]
 
-    def extract_sentiment(self, comment):
-        pass
-    
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
         op_str = str(option).lower()
@@ -746,6 +797,7 @@ class Analyzer:
 
 print("\nWelcome to the subreddit analysis program.")
 a = Analyzer()
+a.read_words()
 while a.is_running():
     a.print_menu()
     option = input()
