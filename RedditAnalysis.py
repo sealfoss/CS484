@@ -3,6 +3,7 @@ from praw import exceptions
 import prawcore
 import re
 from nltk.corpus import stopwords
+import nltk
 import numpy as np
 import math
 from random import randrange as rr
@@ -375,7 +376,12 @@ class Analyzer:
             while max_posts is 0:
                 print(
                     "How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
-                m = int(input())
+                m = 1
+                try:
+                    m = int(input())
+                except ValueError:
+                    print("Messed up integer value, setting posts to 10...")
+                    m = 10				
                 if m is not None and m > 0:
                     max_posts = m
                 else:
@@ -385,7 +391,12 @@ class Analyzer:
             while max_comments is 0:
                 print("How many of the top comments from these posts in /r/"
                       + sub_name + " would you like to pull from reddit? (n>0)")
-                m = int(input())
+                m = 1
+                try:
+                    m = int(input())
+                except ValueError:
+                    print("Messed up integer value, setting posts to 10...")
+                    m = 10
                 if m is not None and m > 0:
                     max_comments = m
                 else:
@@ -599,13 +610,16 @@ class Analyzer:
 
     def extract_sentiments(self, comments):
         sentiments = []
+        pos_tags = ['JJ','JJR','JJS','RBR','RBS','RB','VB','VBD','VBG','VBN','VBZ']
         for comment in comments:
+            pos_comment = nltk.pos_tag(comment)
             score = 0
-            for word in comment:
-                if word in self.words_pos:
-                    score += 1
-                if word in self.words_neg:
-                    score -= 1
+            for word in pos_comment:
+                if word[1] in pos_tags:
+                    if word[0] in self.words_pos:
+                        score += 1
+                    if word[0] in self.words_neg:
+                        score -= 1
             sentiments.append(score)
         self.sentiments = sentiments
 
@@ -646,8 +660,11 @@ class Analyzer:
         word_bag_len = len(word_bag)
         best_accuracy = 0.0
         best_k = 0
+        #open a file to write the log    
+        log_file = open("LOG.TXT","w")
         for i in range(0, n):
             print("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k))
+            log_file.write("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k) + "\n") 
             random_split = self.get_random_split(matrix_len)
             train_picks = random_split[0]
             test_picks = random_split[1]
@@ -673,11 +690,16 @@ class Analyzer:
             results_v_grades = self.get_accuracy(results, test_slice_grades, len(results))
             accuracy = results_v_grades[2]
             print("Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".")
+            log_file.write("Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".\n")
             if accuracy > best_accuracy:
+
                 best_accuracy = accuracy
                 best_k = k
             k = self.next_prime(k)
+        
         print("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.")
+        log_file.write("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.\n")
+        log_file.close()
         return best_k
 
     def classify_test_data(self):
