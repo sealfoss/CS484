@@ -356,51 +356,82 @@ class Analyzer:
         print("Exiting program...")
         self.running = False
         pass
+    
+    @staticmethod
+    def provide_input(word_length,is_it_int):
+        user_input = ""
+        if is_it_int:
+            try:
+                user_input = int(input())   
+            except ValueError:
+                print("Invalid input, setting posts to 5...")
+                user_input = 5
+
+            if user_input is not None and user_input > 0:
+                return user_input 
+            return 0
+    
+        else:
+            user_input = str(input())
+            if user_input is not None and 0 < len(user_input) < word_length:
+                return user_input
+            return None
+    
+         
 
     @staticmethod
     def select_sub():
         sub_name = None
         max_posts = 0
         max_comments = 0
-
+        
         while sub_name is None or max_posts is 0 or max_comments is 0:
             while sub_name is None:
                 print("What is the name of the subreddit you would like to pull comments from?")
-                name = str(input())
-                if name is not None and 0 < len(name) < 20:
-                    sub_name = name
-                else:
+                sub_name = Analyzer.provide_input(20,False)
+                
+                if sub_name is None:
                     print("Invalid subreddit name, please try again.")
+               # name = str(input())
+               # if name is not None and 0 < len(name) < 20:
+               #     sub_name = name
+               # else:
+               #     print("Invalid subreddit name, please try again.")
             print("You have chosen /r/" + sub_name + " as your subreddit.")
 
             while max_posts is 0:
-                print(
-                    "How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
-                m = 1
-                try:
-                    m = int(input())
-                except ValueError:
-                    print("Messed up integer value, setting posts to 10...")
-                    m = 10				
-                if m is not None and m > 0:
-                    max_posts = m
-                else:
+                print("How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
+                max_posts = Analyzer.provide_input(20,True)
+                if max_posts == 0:
                     print("Please enter an integer value greater than zero.")
+               # m = 1
+               # try:
+               #     m = int(input())
+               # except ValueError:
+               #     print("Messed up integer value, setting posts to 10...")
+               #     m = 10				
+               # if m is not None and m > 0:
+               #     max_posts = m
+               # else:
+                   # print("Please enter an integer value greater than zero.")
             print("You have chosen to pull the top " + str(max_posts) + " posts from /r/" + sub_name + ".")
 
             while max_comments is 0:
-                print("How many of the top comments from these posts in /r/"
-                      + sub_name + " would you like to pull from reddit? (n>0)")
-                m = 1
-                try:
-                    m = int(input())
-                except ValueError:
-                    print("Messed up integer value, setting posts to 10...")
-                    m = 10
-                if m is not None and m > 0:
-                    max_comments = m
-                else:
+                print("How many of the top comments from these posts in /r/" + sub_name + " would you like to pull from reddit? (n>0)")
+                max_comments = Analyzer.provide_input(20,True)
+                if max_comments == 0:
                     print("Please enter an integer value greater than zero.")
+
+               # m = 1
+               # try:
+               #     m = int(input())
+               # except ValueError:
+               #     print("Messed up integer value, setting posts to 10...")
+               #     m = 10
+               # if m is not None and m > 0:
+               #     max_comments = m
+               # else:
+               #     print("Please enter an integer value greater than zero.")
 
             answer = None
             while answer is None:
@@ -654,6 +685,12 @@ class Analyzer:
         accuracy = [correct, incorrect, percent_correct, percent_incorrect]
         return accuracy
 
+    @staticmethod
+    def log_item(string_to_write):
+        with open("LOG.TXT","a+") as log_file:
+            log_file.write(string_to_write)
+
+
     def cross_validate(self, n, initial_k, train_matrix, grades, word_bag):
         k = initial_k
         matrix_len = len(train_matrix)
@@ -664,7 +701,8 @@ class Analyzer:
         log_file = open("LOG.TXT","w")
         for i in range(0, n):
             print("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k))
-            log_file.write("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k) + "\n") 
+            first_str = "Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k) + "\n" 
+            Analyze.log_item(first_str)
             random_split = self.get_random_split(matrix_len)
             train_picks = random_split[0]
             test_picks = random_split[1]
@@ -690,7 +728,9 @@ class Analyzer:
             results_v_grades = self.get_accuracy(results, test_slice_grades, len(results))
             accuracy = results_v_grades[2]
             print("Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".")
-            log_file.write("Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".\n")
+            second_str = "Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".\n"
+            log_item(second_str)
+
             if accuracy > best_accuracy:
 
                 best_accuracy = accuracy
@@ -698,8 +738,8 @@ class Analyzer:
             k = self.next_prime(k)
         
         print("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.")
-        log_file.write("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.\n")
-        log_file.close()
+        third_str = "Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.\n"
+        log_item(third_str)
         return best_k
 
     def classify_test_data(self):
@@ -819,13 +859,13 @@ class Analyzer:
         for o in self.options:
             print(o)
 
-
-print("\nWelcome to the subreddit analysis program.")
-a = Analyzer()
-a.read_words()
-while a.is_running():
-    a.print_menu()
-    option = input()
-    a.select_menu_option(option)
-print("Thanks for using the reddit analysis program!\n")
-quit(0)
+if __name__ == '__main__':
+    print("\nWelcome to the subreddit analysis program.")
+    a = Analyzer()
+    a.read_words()
+    while a.is_running():
+        a.print_menu()
+        option = input()
+        a.select_menu_option(option)
+    print("Thanks for using the reddit analysis program!\n")
+    quit(0)
