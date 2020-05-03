@@ -392,11 +392,6 @@ class Analyzer:
                 
                 if sub_name is None:
                     print("Invalid subreddit name, please try again.")
-               # name = str(input())
-               # if name is not None and 0 < len(name) < 20:
-               #     sub_name = name
-               # else:
-               #     print("Invalid subreddit name, please try again.")
             print("You have chosen /r/" + sub_name + " as your subreddit.")
 
             while max_posts is 0:
@@ -404,16 +399,6 @@ class Analyzer:
                 max_posts = Analyzer.provide_input(20,True)
                 if max_posts == 0:
                     print("Please enter an integer value greater than zero.")
-               # m = 1
-               # try:
-               #     m = int(input())
-               # except ValueError:
-               #     print("Messed up integer value, setting posts to 10...")
-               #     m = 10				
-               # if m is not None and m > 0:
-               #     max_posts = m
-               # else:
-                   # print("Please enter an integer value greater than zero.")
             print("You have chosen to pull the top " + str(max_posts) + " posts from /r/" + sub_name + ".")
 
             while max_comments is 0:
@@ -421,17 +406,6 @@ class Analyzer:
                 max_comments = Analyzer.provide_input(20,True)
                 if max_comments == 0:
                     print("Please enter an integer value greater than zero.")
-
-               # m = 1
-               # try:
-               #     m = int(input())
-               # except ValueError:
-               #     print("Messed up integer value, setting posts to 10...")
-               #     m = 10
-               # if m is not None and m > 0:
-               #     max_comments = m
-               # else:
-               #     print("Please enter an integer value greater than zero.")
 
             answer = None
             while answer is None:
@@ -518,6 +492,7 @@ class Analyzer:
                              username=self.u_name)
         return reddit
 
+#what is out_file used for? ================================================================================
     def get_top_comments(self, sub_name, max_top_posts, max_top_comments):
         print("Pulling the top " + str(max_top_comments) + " comments from the top "
               + str(max_top_posts) + " posts in /r/" + sub_name + ".\n")
@@ -702,7 +677,7 @@ class Analyzer:
         for i in range(0, n):
             print("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k))
             first_str = "Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k) + "\n" 
-            Analyze.log_item(first_str)
+            Analyzer.log_item(first_str)
             random_split = self.get_random_split(matrix_len)
             train_picks = random_split[0]
             test_picks = random_split[1]
@@ -729,7 +704,7 @@ class Analyzer:
             accuracy = results_v_grades[2]
             print("Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".")
             second_str = "Found accuracy of " + str(accuracy) + "% for k=" + str(k) + ".\n"
-            log_item(second_str)
+            Analyzer.log_item(second_str)
 
             if accuracy > best_accuracy:
 
@@ -739,7 +714,7 @@ class Analyzer:
         
         print("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.")
         third_str = "Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.\n"
-        log_item(third_str)
+        Analyzer.log_item(third_str)
         return best_k
 
     def classify_test_data(self):
