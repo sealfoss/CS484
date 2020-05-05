@@ -1,0 +1,21 @@
+Running cross-validation 1 of 10, k=3
+Found accuracy of 65.70309800760106% for k=3.
+Running cross-validation 2 of 10, k=5
+Found accuracy of 65.31152827363815% for k=5.
+Running cross-validation 3 of 10, k=7
+Found accuracy of 65.89888287458251% for k=7.
+Running cross-validation 4 of 10, k=11
+Found accuracy of 66.0255672002764% for k=11.
+Running cross-validation 5 of 10, k=13
+Found accuracy of 66.17528503973281% for k=13.
+Running cross-validation 6 of 10, k=17
+Found accuracy of 66.3941034204768% for k=17.
+Running cross-validation 7 of 10, k=19
+Found accuracy of 67.20027640216514% for k=19.
+Running cross-validation 8 of 10, k=23
+Found accuracy of 68.63987101232293% for k=23.
+Running cross-validation 9 of 10, k=29
+Found accuracy of 67.34999424162156% for k=29.
+Running cross-validation 10 of 10, k=31
+Found accuracy of 67.28089370033399% for k=31.
+Best value 'k' found to be 23, with an accuracy rating of 68.63987101232293%.

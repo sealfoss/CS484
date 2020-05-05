@@ -37,6 +37,7 @@ class Analyzer:
         self.test_post_line_count = 0
         self.test_matrix = None
         self.min_post_line_len = 5
+        self.best_k = None
 
         self.train_matrix = None
         self.train_matrix_len = 0
@@ -492,7 +493,6 @@ class Analyzer:
                              username=self.u_name)
         return reddit
 
-#what is out_file used for? ================================================================================
     def get_top_comments(self, sub_name, max_top_posts, max_top_comments):
         print("Pulling the top " + str(max_top_comments) + " comments from the top "
               + str(max_top_posts) + " posts in /r/" + sub_name + ".\n")
@@ -640,7 +640,7 @@ class Analyzer:
 
     @staticmethod
     def get_accuracy(results, answers, total):
-        if len(results) is not total or len(answers) is not total:
+        if len(results) != total or len(answers) != total:
             print("You can't get accuracy from mismatched results and answers lists!")
             print(str(len(results)))
             print(str(len(answers)))
@@ -667,12 +667,13 @@ class Analyzer:
 
 
     def cross_validate(self, n, initial_k, train_matrix, grades, word_bag):
+        start_time = time.time()
         k = initial_k
         matrix_len = len(train_matrix)
         word_bag_len = len(word_bag)
         best_accuracy = 0.0
         best_k = 0
-        #open a file to write the log    
+        # open a file to write the log
         log_file = open("LOG.TXT","w")
         for i in range(0, n):
             print("Running cross-validation " + str(i+1) + " of " + str(n) + ", k=" + str(k))
@@ -713,7 +714,10 @@ class Analyzer:
             k = self.next_prime(k)
         
         print("Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.")
-        third_str = "Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of " + str(best_accuracy) + "%.\n"
+        third_str = "Best value 'k' found to be " + str(best_k) + ", with an accuracy rating of "\
+                    + str(best_accuracy) + "%.\n"
+        validation_time = time.time() - start_time
+        print("Cross validation took " + str(validation_time) + " seconds to complete.")
         Analyzer.log_item(third_str)
         return best_k
 
@@ -721,24 +725,46 @@ class Analyzer:
         if self.c0_matrix is None or self.c1_matrix is None or self.word_bag is None or self.test_matrix is None:
             print("Please designate classifications 0 and 1, and a reddit post for classification.")
             return
-        start_time = time.time()
         print("Welcome to the classification part of the program.")
-        k = self.initial_k
-        cross_validations = 0
-        while cross_validations < 1:
-            print("How many times would you like to cross validate for a better value k?")
-            loops_in = input("Please enter an integer value greater than zero "
-                             "(keep it small or you'll be here all day).")
+        k = None
+        while k is None:
+            print("Would you like to provide a value for k, or cross validate for one?")
+            answer = input("Please enter some integer value for k, or 0 to cross validate.")
             try:
-                cross_validations = int(loops_in)
-            except ValueError:
+                new_k = int(answer)
+                k = new_k
+            except ValueError as e:
                 print("Invalid input, please try again.")
-                cross_validations = 0
-        print("Finding best value for k via cross validation. This will execute " + str(cross_validations) + " times.")
-        best_k = self.cross_validate(cross_validations, self.initial_k, self.train_matrix,
-                                     self.train_grades, self.word_bag)
+        if k > 0:
+            self.best_k = k
+        else:
+            start_k = 0
+            while start_k < 1:
+                print("Cross validator will start with a given value for k, "
+                      "and increment to the next prime number at every iteration.")
+                start_in = input("What value for k would you like the validator to start with?")
+                try:
+                    start_k = int(start_in)
+                    self.initial_k = start_k
+                except ValueError:
+                    print("Invalid input, please try again.")
+            cross_validations = 0
+            while cross_validations < 1:
+                print("How many times would you like to cross validate for a better value k?")
+                loops_in = input("Please enter an integer value greater than zero. "
+                                 "You may want to keep it small, or else you'll be here all day.")
+                try:
+                    cross_validations = int(loops_in)
+                except ValueError:
+                    print("Invalid input, please try again.")
+                    cross_validations = 0
+            print("Finding best value for k via cross validation. Validator will begin with k=" + str(start_k) +
+                  " and will execute " + str(cross_validations) + " times.")
+            self.best_k = self.cross_validate(cross_validations, self.initial_k, self.train_matrix,
+                                              self.train_grades, self.word_bag)
+        start_time = time.time()
         print("Running classification on test data...")
-        results = self.run_comparison_cos(best_k, self.train_matrix, self.test_matrix, self.train_grades)
+        results = self.run_comparison_cos(self.best_k, self.train_matrix, self.test_matrix, self.train_grades)
         print("Classification complete. Generating report...")
         results_len = len(results)
         num_c0 = 0
@@ -766,7 +792,7 @@ class Analyzer:
               + " comments from reddit post to be positive in nature, while " + str(sentiment_neg) +
               " comments from the post were found to be negative in nature.")
         run_time = time.time() - start_time
-        print("Running time: " + str(run_time) + "s.")
+        print("Running time for classification: " + str(run_time) + "s.")
 
     def next_prime(self, n):
         prime = n+1
@@ -833,6 +859,7 @@ class Analyzer:
         print(self.greeting)
         for o in self.options:
             print(o)
+
 
 if __name__ == '__main__':
     print("\nWelcome to the subreddit analysis program.")
