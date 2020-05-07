@@ -383,55 +383,73 @@ class Analyzer:
     @staticmethod
     def select_sub():
         sub_name = None
-        max_posts = 0
-        max_comments = 0
+        num_posts = 0
+        num_comments = 0
         
-        while sub_name is None or max_posts is 0 or max_comments is 0:
+        while sub_name is None or num_posts == 0 or num_comments == 0:
             while sub_name is None:
+
                 print("What is the name of the subreddit you would like to pull comments from?")
                 sub_name = Analyzer.provide_input(20,False)
                 
                 if sub_name is None:
-                    print("Invalid subreddit name, please try again.")
-            print("You have chosen /r/" + sub_name + " as your subreddit.")
+                    print("Invalid subreddit name, please try again.") 
+            
+            text_one = "You have chosen /r/{subreddit} as your subreddit."
 
-            while max_posts is 0:
-                print("How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
-                max_posts = Analyzer.provide_input(20,True)
-                if max_posts == 0:
+            print(text_one.format(subreddit = sub_name))
+
+            while num_posts is 0:
+               #print("How many of the top posts from /r/" + sub_name + " would you like to pull from reddit? (n>0)")
+                text_two = "How many of the top posts from /r/{subreddit} would you like to pull from reddit? (n>0)"
+                print(text_two.format(subreddit=sub_name))
+
+                num_posts = Analyzer.provide_input(20,True)
+
+                if num_posts == 0:
                     print("Please enter an integer value greater than zero.")
-            print("You have chosen to pull the top " + str(max_posts) + " posts from /r/" + sub_name + ".")
+            #print("You have chosen to pull the top " + str(num_posts) + " posts from /r/" + sub_name + ".")
 
-            while max_comments is 0:
-                print("How many of the top comments from these posts in /r/" + sub_name + " would you like to pull from reddit? (n>0)")
-                max_comments = Analyzer.provide_input(20,True)
-                if max_comments == 0:
+            text_three = "You have chose to pull the top {number_of_posts} posts from /r/{subreddit}."
+            print(text_three.format(number_of_posts = num_posts, subreddit = sub_name))
+
+
+            while num_comments is 0:
+                #print("How many of the top comments from these posts in /r/" + sub_name + " would you like to pull from reddit? (n>0)")
+
+                text_four = "How many of the top comments from these posts in /r/{subreddit} would you like to pull from reddit? (n>0)"
+                print(text_four.format(subreddit = sub_name))
+                num_comments = Analyzer.provide_input(20,True)
+                if num_comments == 0:
                     print("Please enter an integer value greater than zero.")
 
             answer = None
             while answer is None:
-                print("You have chosen to pull the top " + str(max_comments) + " comments from the top "
-                      + str(max_posts) + " posts in /r/" + sub_name + ".")
+                #print("You have chosen to pull the top " + str(num_comments) + " comments from the top "
+                #      + str(num_posts) + " posts in /r/" + sub_name + ".")
+                text_five = "You have chose to pull the top {number_of_comments} comments from the top {number_of_posts} posts in /r/{subreddit}."
+
+                print(text_five.format(number_of_comments = num_comments,number_of_posts = num_posts, subreddit = sub_name))
                 print("Is this correct?")
                 answer = str(input()).lower()
                 if answer == 'y' or answer == 'n':
                     if answer == 'n':
                         sub_name = None
-                        max_posts = 0
-                        max_comments = 0
+                        num_posts = 0
+                        num_comments = 0
                 else:
                     print("Invalid input, please answer 'y' or 'n'.")
                     answer = None
 
-        return [sub_name, max_posts, max_comments]
+        return [sub_name, num_posts, num_comments]
 
     def pull_comments(self, c0c1):
         selected_sub = self.select_sub()
         sub_name = selected_sub[0]
-        max_posts = selected_sub[1]
-        max_comments = selected_sub[2]
+        num_posts = selected_sub[1]
+        num_comments = selected_sub[2]
         pulled = None
-        filename = sub_name + "_p" + str(max_posts) + "_c" + str(max_comments) + ".dat"
+        filename = sub_name + "_p" + str(num_posts) + "_c" + str(num_comments) + ".dat"
         found = True
         in_file = None
         try:
@@ -455,7 +473,7 @@ class Analyzer:
 
         if pulled is None:
             try:
-                pulled = self.get_top_comments(sub_name, max_posts, max_comments)
+                pulled = self.get_top_comments(sub_name, num_posts, num_comments)
             except praw.exceptions.PRAWException as err:
                 self.error_quit("Reddit doesn't like your sub name: " + str(err))
                 return
@@ -537,17 +555,17 @@ class Analyzer:
             return
         # first, get comments from a given post
         reddit = self.get_reddit()
-        max_comments = None
+        num_comments = None
         input_url = None
         comment_list = []
         post = None
         while post is None:
             while input_url is None:
                 input_url = input("What is the URL of the post you would like to pull comments from?")
-            while max_comments is None:
+            while num_comments is None:
                 num_in = input("What is the max amount of comments you want to pull from this post?")
                 try:
-                    max_comments = int(num_in)
+                    num_comments = int(num_in)
                 except ValueError:
                     print("Please enter a valid integer value.")
             try:
@@ -557,13 +575,13 @@ class Analyzer:
                 print("Please try again.")
                 post = None
                 input_url = None
-                max_comments = None
+                num_comments = None
             except prawcore.PrawcoreException as err:
                 print("Reddit doesn't like the URL you gave it: " + str(err))
                 print("Please try again.")
                 post = None
                 input_url = None
-                max_comments = None
+                num_comments = None
         self.test_url = input_url
         post.comments.replace_more(limit=0)
         post.comment_sort = 'top'
@@ -574,7 +592,7 @@ class Analyzer:
             if body is not None:
                 comment_list.append(body)
                 com_count += 1
-                if com_count >= max_comments:
+                if com_count >= num_comments:
                     break
         self.test_post_comments_count = com_count
         print("Successfully pulled " + str(com_count) + " comments from post \"" + post.title + "\".")
@@ -832,25 +850,25 @@ class Analyzer:
 
     def select_menu_option(self, option):
         print("You have selected menu option \"" + str(option) + "\".\n")
-        op_str = str(option).lower()
-        op_int = None
+        str_input = str(option).lower()
+        int_input = None
         try:
-            op_int = int(option)
+            int_input = int(option)
         except ValueError:
-            op_int = None
+            int_input = None
 
-        if op_str is not None and op_str == 'q':
+        if str_input is not None and str_input == 'q':
             self.running = False
-        elif op_int is not None:
-            if op_int == 1:
+        elif int_input is not None:
+            if int_input == 1:
                 self.pull_comments(True)
-            elif op_int == 2:
+            elif int_input == 2:
                 self.pull_comments(False)
-            elif op_int == 3:
+            elif int_input == 3:
                 self.parse_lines()
-            elif op_int == 4:
+            elif int_input == 4:
                 self.get_post_comments()
-            elif op_int == 5:
+            elif int_input == 5:
                 self.classify_test_data()
         else:
             print("Invalid input, please try again.\n")
